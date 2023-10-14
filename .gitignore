@@ -1,5 +1,5 @@
 # TP Custom:
-netpuppy-pkg/*
+netpuppy-pkg/__pycache__
 
 # Python-Specific:
 # Byte-compiled / optimized / DLL files
