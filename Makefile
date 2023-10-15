@@ -1,3 +1,15 @@
+# Check for python or python3
+PYTHON_EXISTS := $(shell python -c "print('exists')" 2>/dev/null)
+PYTHON3_EXISTS := $(shell python3 -c "print('exists')" 2>/dev/null)
+
+ifeq ($(PYTHON_EXISTS),exists)
+PYTHON := python
+else ifeq ($(PYTHON3_EXISTS),exists)
+PYTHON := python3
+else
+$(error "No python or python3 found. Please install Python.")
+endif
+
 # check if the OS is Windows_NT
 ifeq ($(OS),Windows_NT)
 	ENV_NAME := Scripts
@@ -7,7 +19,6 @@ endif
 
 # Define variables
 VENV_DIR := .venv
-PYTHON := python
 PIP := $(VENV_DIR)/${ENV_NAME}/pip
 PYTEST := $(VENV_DIR)/${ENV_NAME}/pytest
 BLACK := $(VENV_DIR)/${ENV_NAME}/black
@@ -24,8 +35,16 @@ else
     DEL_COMMAND := del /s /q
 endif
 
-print-del-command:
-	@echo $(DEL_COMMAND)
+# Help command
+help:
+	@echo "Usage: make [target]"
+	@echo "Targets:"
+	@echo "  build:    Build the project"
+	@echo "  clean:    Clean the project"
+	@echo "  test:     Run the tests"
+	@echo "  format:   Format the code using black"
+	@echo "  env/venv: Create a virtual environment"
+	@echo "  help:     Show this help message"
 
 # Build the project
 build:
@@ -33,23 +52,34 @@ build:
 
 # Format the code using black
 format:
+	@if [ ! -f "$(VENV_DIR)/${ENV_NAME}/python" ] && [ ! -f "$(VENV_DIR)/${ENV_NAME}/python.exe" ]; then \
+		echo "Error: Virtual environment not set up. Run 'make venv' first."; \
+		exit 1; \
+	fi
 	@$(BLACK) .
 
 # Run the tests
 test:
+	@if [ ! -f "$(VENV_DIR)/${ENV_NAME}/python" ] && [ ! -f "$(VENV_DIR)/${ENV_NAME}/python.exe" ]; then \
+		echo "Error: Virtual environment not set up. Run 'make venv' first."; \
+		exit 1; \
+	fi
 	@$(PYTEST)
 	@$(MYPY) --config-file=pyproject.toml netpuppy
 
 # Create a virtual environment
 env:
-	@$(PYTHON) -m venv $(VENV_DIR)
-	@if [ "${MSYSTEM}" ]; then \
-		source $(VENV_DIR)/Scripts/activate && $(PIP) install -e .[dev]; \
+	@if [ -d "$(VENV_DIR)" ]; then \
+		echo "Virtual environment already exists."; \
+		echo "To activate the virtual environment, run:"; \
+		echo "source $(VENV_DIR)/${ENV_NAME}/activate"; \
 	else \
-		source $(VENV_DIR)/bin/activate && $(PIP) install -e .[dev]; \
+		echo "Creating a virtual environment..."; \
+		$(PYTHON) -m venv $(VENV_DIR); \
+		$(VENV_DIR)/${ENV_NAME}/activate && $(PIP) install -e .[dev]; \
+		echo "To activate the virtual environment, run:"; \
+		echo "source $(VENV_DIR)/${ENV_NAME}/activate"; \
 	fi
-	@echo "To activate the virtual environment, run:"
-	@echo "source $(VENV_DIR)/${ENV_NAME}/activate"
 venv: env
 
 # Clean the project
@@ -61,14 +91,3 @@ clean:
 	-@$(DEL_COMMAND) $(VENV_DIR)
 	-@$(DEL_COMMAND) .mypy_cache
 	-@$(DEL_COMMAND) .pytest_cache
-
-# Help command
-help:
-	@echo "Usage: make [target]"
-	@echo "Targets:"
-	@echo "  build:    Build the project"
-	@echo "  clean:    Clean the project"
-	@echo "  test:     Run the tests"
-	@echo "  format:   Format the code using black"
-	@echo "  env/venv: Create a virtual environment"
-	@echo "  help:     Show this help message"
