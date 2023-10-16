@@ -3,9 +3,9 @@ PYTHON_EXISTS := $(shell python -c "print('exists')" 2>/dev/null)
 PYTHON3_EXISTS := $(shell python3 -c "print('exists')" 2>/dev/null)
 
 ifeq ($(PYTHON_EXISTS),exists)
-PYTHON := python
+BASE_PYTHON := python
 else ifeq ($(PYTHON3_EXISTS),exists)
-PYTHON := python3
+BASE_PYTHON := python3
 else
 $(error "No python or python3 found. Please install Python.")
 endif
@@ -23,6 +23,7 @@ PIP := $(VENV_DIR)/${ENV_NAME}/pip
 PYTEST := $(VENV_DIR)/${ENV_NAME}/pytest
 BLACK := $(VENV_DIR)/${ENV_NAME}/black
 MYPY := $(VENV_DIR)/${ENV_NAME}/mypy
+PYTHON := $(VENV_DIR)/${ENV_NAME}/python
 
 # Define phony targets
 .PHONY: all clean test format env
@@ -75,7 +76,7 @@ env:
 		echo "source $(VENV_DIR)/${ENV_NAME}/activate"; \
 	else \
 		echo "Creating a virtual environment..."; \
-		$(PYTHON) -m venv $(VENV_DIR); \
+		$(BASE_PYTHON) -m venv --prompt netpuppy $(VENV_DIR); \
 		$(VENV_DIR)/${ENV_NAME}/activate && $(PIP) install -e .[dev]; \
 		echo "To activate the virtual environment, run:"; \
 		echo "source $(VENV_DIR)/${ENV_NAME}/activate"; \
