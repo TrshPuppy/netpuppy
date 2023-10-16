@@ -89,12 +89,12 @@ As it's being planned & built right now, NetPuppy will have two modes: client & 
 #### Client mode
 Client is the default mode & will initiate a TCP connection to a remote host address (`-H`) and port number (`-p`):
 ```
-./netpuppy -H 10.0.2.5 -p 69
+netpuppy -H 10.0.2.5 -p 69
 ```
 #### Server/ Listener mode
 Give the `-l` flag to put NetPuppy into listening mode. In this mode NetPuppy will default to your primary network interface and will listen to the posrt you provide via `-p`.
 ```
-./netpuppy -l -p 69
+netpuppy -l -p 69
 ```
 ## Why Python?
 Python is the language for this tool for now, with plans to migrate to a lower-level, less-abstracted language in the future (such as Golang perhaps :) ?)
