@@ -10,31 +10,17 @@ else
 $(error "No python or python3 found. Please install Python.")
 endif
 
-# check if the OS is Windows_NT
-ifeq ($(OS),Windows_NT)
-	ENV_NAME := Scripts
-else
-	ENV_NAME := bin
-endif
-
 # Define variables
 VENV_DIR := .venv
-PIP := $(VENV_DIR)/${ENV_NAME}/pip
-PYTEST := $(VENV_DIR)/${ENV_NAME}/pytest
-BLACK := $(VENV_DIR)/${ENV_NAME}/black
-MYPY := $(VENV_DIR)/${ENV_NAME}/mypy
-PYTHON := $(VENV_DIR)/${ENV_NAME}/python
+PIP := $(VENV_DIR)/bin/pip
+PYTEST := $(VENV_DIR)/bin/pytest
+BLACK := $(VENV_DIR)/bin/black
+MYPY := $(VENV_DIR)/bin/mypy
+PYTHON := $(VENV_DIR)/bin/python
+DEL_COMMAND := rm -rf
 
 # Define phony targets
 .PHONY: all clean test format env
-
-# Detect the shell
-ifdef MSYSTEM
-    DEL_COMMAND := rm -rf
-else
-    # Windows Command Prompt or PowerShell
-    DEL_COMMAND := del /s /q
-endif
 
 # Help command
 help:
@@ -53,7 +39,7 @@ build:
 
 # Format the code using black
 format:
-	@if [ ! -f "$(VENV_DIR)/${ENV_NAME}/python" ] && [ ! -f "$(VENV_DIR)/${ENV_NAME}/python.exe" ]; then \
+	@if [ ! -f "$(VENV_DIR)/bin/python" ] && [ ! -f "$(VENV_DIR)/bin/python.exe" ]; then \
 		echo "Error: Virtual environment not set up. Run 'make venv' first."; \
 		exit 1; \
 	fi
@@ -61,7 +47,7 @@ format:
 
 # Run the tests
 test:
-	@if [ ! -f "$(VENV_DIR)/${ENV_NAME}/python" ] && [ ! -f "$(VENV_DIR)/${ENV_NAME}/python.exe" ]; then \
+	@if [ ! -f "$(VENV_DIR)/bin/python" ] && [ ! -f "$(VENV_DIR)/bin/python.exe" ]; then \
 		echo "Error: Virtual environment not set up. Run 'make venv' first."; \
 		exit 1; \
 	fi
@@ -73,13 +59,13 @@ env:
 	@if [ -d "$(VENV_DIR)" ]; then \
 		echo "Virtual environment already exists."; \
 		echo "To activate the virtual environment, run:"; \
-		echo "source $(VENV_DIR)/${ENV_NAME}/activate"; \
+		echo "source $(VENV_DIR)/bin/activate"; \
 	else \
 		echo "Creating a virtual environment..."; \
 		$(BASE_PYTHON) -m venv --prompt netpuppy $(VENV_DIR); \
-		$(VENV_DIR)/${ENV_NAME}/activate && $(PIP) install -e .[dev]; \
+		$(VENV_DIR)/bin/activate && $(PIP) install -e .[dev]; \
 		echo "To activate the virtual environment, run:"; \
-		echo "source $(VENV_DIR)/${ENV_NAME}/activate"; \
+		echo "source $(VENV_DIR)/bin/activate"; \
 	fi
 venv: env
 
