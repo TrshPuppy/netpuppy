@@ -63,7 +63,7 @@ env:
 	else \
 		echo "Creating a virtual environment..."; \
 		$(BASE_PYTHON) -m venv --prompt netpuppy $(VENV_DIR); \
-		$(VENV_DIR)/bin/activate && $(PIP) install -e .[dev]; \
+		$(PIP) install -e .[dev]; \
 		echo "To activate the virtual environment, run:"; \
 		echo "source $(VENV_DIR)/bin/activate"; \
 	fi
