@@ -67,6 +67,15 @@ def get_parse_args():
         epilog="Tell netpuppy he was a good boi.",
     )
 
+    class CustomPortAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            print(f"custom actiont")
+            print(
+                f"parser = {parser}: namespace = {namespace}: values= {values}: option_string = {option_string}"
+            )
+            #    parser = ArgumentParser(prog='netpuppy', usage=None, description='Launch a puppy to sneef and fetch data for you', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True): namespace = Namespace(listen=True, host_ip=None, port=None): values= ['20-55']: option_string = -p
+            #    Namespace(listen=True, host_ip=None, port=None)
+
     # Add arguments
     #   First group is mutually exclusive (listen vs host-ip/ connect)
     exclusive_group = parser.add_mutually_exclusive_group(required=True)
@@ -88,7 +97,7 @@ def get_parse_args():
 
     # Regular arguments (not grouped)
     parser.add_argument(
-        "-p", "--port", action="extend", required=True, type=int, nargs="+"
+        "-p", "--port", action=CustomPortAction, required=True, nargs="+"
     )
     # PORT NOTES:
     #   Limit individual port range
