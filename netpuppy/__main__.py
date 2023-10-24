@@ -86,11 +86,16 @@ def get_parse_args():
     #              + (if the input fails that regex check, treat it as
     #                   a possible domain/ hostname instead)
 
+    # Regular arguments (not grouped)
     parser.add_argument(
         "-p", "--port", action="store", required=True, type=int, nargs=1
     )
     # PORT NOTES:
-    # Limit port range
+    #   Limit individual port range
+    #   Allow for a list of ports
+    #       should be: range, or list (ie. 1-10 vs 1,5,7)
+
+    parser.add_argument("-v", "--version", action="version", version="NetPuppy v1.0")
 
     # Get the list of arguments:
     args = parser.parse_args()
