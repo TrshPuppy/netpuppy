@@ -88,7 +88,7 @@ def get_parse_args():
 
     # Regular arguments (not grouped)
     parser.add_argument(
-        "-p", "--port", action="store", required=True, type=int, nargs=1
+        "-p", "--port", action="extend", required=True, type=int, nargs="*"
     )
     # PORT NOTES:
     #   Limit individual port range
