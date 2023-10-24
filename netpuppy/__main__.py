@@ -70,11 +70,15 @@ def get_parse_args():
     class CustomPortAction(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
             print(f"custom actiont")
-            print(
-                f"parser = {parser}: namespace = {namespace}: values= {values}: option_string = {option_string}"
-            )
+            # print(
+            #     f"parser = {parser}: namespace = {namespace}: values= {values}: option_string = {option_string}"
+            # )
             #    parser = ArgumentParser(prog='netpuppy', usage=None, description='Launch a puppy to sneef and fetch data for you', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True): namespace = Namespace(listen=True, host_ip=None, port=None): values= ['20-55']: option_string = -p
             #    Namespace(listen=True, host_ip=None, port=None)
+
+            setattr(self, "values", values)
+            # port_input = parser["get_values"]
+            print(f"self = {self.values}")
 
     # Add arguments
     #   First group is mutually exclusive (listen vs host-ip/ connect)
