@@ -1,26 +1,15 @@
-# Check for python or python3
-PYTHON_EXISTS := $(shell python -c "print('exists')" 2>/dev/null)
-PYTHON3_EXISTS := $(shell python3 -c "print('exists')" 2>/dev/null)
-
-ifeq ($(PYTHON_EXISTS),exists)
-BASE_PYTHON := python
-else ifeq ($(PYTHON3_EXISTS),exists)
-BASE_PYTHON := python3
-else
-$(error "No python or python3 found. Please install Python.")
-endif
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+package_path := ${shell dirname ${mkfile_path}}
 
 # Define variables
-VENV_DIR := .venv
-PIP := $(VENV_DIR)/bin/pip
-PYTEST := $(VENV_DIR)/bin/pytest
-BLACK := $(VENV_DIR)/bin/black
-MYPY := $(VENV_DIR)/bin/mypy
-PYTHON := $(VENV_DIR)/bin/python
-DEL_COMMAND := rm -rf
+base_python = python
+build_path = ${package_path}/build
+env_path = ${package_path}/.venv
+PYTHON = $(env_path)/bin/python
+library_name = netpuppy
+library_path = ${package_path}/${library_name}
 
-# Define phony targets
-.PHONY: all clean test format env
+source_files = $(shell find $(library_path) -name "*.py")
 
 # Help command
 help:
@@ -33,48 +22,50 @@ help:
 	@echo "  env/venv: Create a virtual environment"
 	@echo "  help:     Show this help message"
 
+# Define header function
+define header
+	@printf "\033[0;32m==> $(1) \033[0m\n"
+endef
+
+# Define virtual environment
+venv := $(env_path)/venv.lock
+${venv}: pyproject.toml
+	$(call header, Creating virtual environment)
+	@$(base_python) -m venv --prompt="netpuppy" $(env_path)
+	@${PYTHON} -m pip install --upgrade pip
+	@${PYTHON} -m pip install -e .[dev]
+	@touch ${venv}
+	$(call header, Virtual environment created)
+	@echo "Run 'source ${env_path}/bin/activate' to activate the virtual environment."
+
+.PHONY: venv
+venv: ${venv}
+
 # Build the project
 build:
+	$(call header, Building the project)
 	@$(PYTHON) -m build
+	@mv dist ${build_path}
 
 # Format the code using black
-format:
-	@if [ ! -f "$(VENV_DIR)/bin/python" ] && [ ! -f "$(VENV_DIR)/bin/python.exe" ]; then \
-		echo "Error: Virtual environment not set up. Run 'make venv' first."; \
-		exit 1; \
-	fi
-	@$(BLACK) .
+.PHONY: format
+format: ${venv}
+	$(call header, Formatting the code)
+	@$(PYTHON) -m black $(source_files)
+
+check_format: ${build_path}/black.diff
+${check_format}: ${venv} ${source_files}
+	$(call header, Checking the code formatting)
+	@mkdir -p ${build_path}
+	@$(PYTHON) -m black --check ---diff $(source_files) > ${check_format}
 
 # Run the tests
-test:
-	@if [ ! -f "$(VENV_DIR)/bin/python" ] && [ ! -f "$(VENV_DIR)/bin/python.exe" ]; then \
-		echo "Error: Virtual environment not set up. Run 'make venv' first."; \
-		exit 1; \
-	fi
-	@$(PYTEST)
-	@$(MYPY) --config-file=pyproject.toml netpuppy
-
-# Create a virtual environment
-env:
-	@if [ -d "$(VENV_DIR)" ]; then \
-		echo "Virtual environment already exists."; \
-		echo "To activate the virtual environment, run:"; \
-		echo "source $(VENV_DIR)/bin/activate"; \
-	else \
-		echo "Creating a virtual environment..."; \
-		$(BASE_PYTHON) -m venv --prompt netpuppy $(VENV_DIR); \
-		$(PIP) install -e .[dev]; \
-		echo "To activate the virtual environment, run:"; \
-		echo "source $(VENV_DIR)/bin/activate"; \
-	fi
-venv: env
+.PHONY: test
+test: ${check_format}
 
 # Clean the project
+.PHONY: clean
 clean:
-	-@$(DEL_COMMAND) build/
-	-@$(DEL_COMMAND) dist/
-	-@$(DEL_COMMAND) *.egg-info/
-	-@$(DEL_COMMAND) __pycache__/
-	-@$(DEL_COMMAND) $(VENV_DIR)
-	-@$(DEL_COMMAND) .mypy_cache
-	-@$(DEL_COMMAND) .pytest_cache
+	$(call header, Cleaning the project)
+	@rm -rf ${build_path}
+	@rm -rf ${env_path}
