@@ -12,7 +12,7 @@ def main():
     # Make the CLI arg parser:
     parser = argparse.ArgumentParser(
         prog="netpuppy",  # ./netpuppy
-        description="Launch a puppy to sneef and fetch data for you",
+        description="Launch a puppy to sneef and fetch data for you!",
         epilog="Tell netpuppy he was a good boi.",
     )
 
@@ -76,9 +76,8 @@ def main():
 
             if rdata:
                 RECEIVE_DATA += rdata
-                # print(f"Received data: {str(RECEIVE_DATA)}")
-            else:
                 print(f"Received data: {str(RECEIVE_DATA)}")
+            else:
                 SEND_DATA += sdata
 
         except KeyboardInterrupt:
