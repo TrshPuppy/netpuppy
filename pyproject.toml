@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["black", "mypy", "pytest", "build"]
+dev = ["black", "mypy", "pytest", "pytest-cov", "build"]
 
 [project.scripts]
 netpuppy = "netpuppy.__main__:main"
@@ -46,3 +46,7 @@ disallow_untyped_defs = true
 no_implicit_reexport = true
 
 warn_return_any = true
+
+[tool.pytest]
+log_cli = 0
+log_cli_level = "INFO"

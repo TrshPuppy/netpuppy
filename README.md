@@ -72,7 +72,7 @@ make venv
 make format
 ```
 
-- Run tests & mypy:
+- Run tests:
 ```
 make test
 ```
@@ -82,7 +82,7 @@ make test
 make clean
 ```
 
-Once cloned, run `make env`, then afer activating the python venv with either `source .venv/bin/activate` or `source .venv\Scripts\activate` should be able to run NetPuppy using `netpuppy`.
+Once cloned, run `make env`, then afer activating the python venv with either `source .venv/bin/activate` should be able to run NetPuppy using `netpuppy`.
 
 ### Flags
 As it's being planned & built right now, NetPuppy will have two modes: client & server. 
