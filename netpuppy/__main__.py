@@ -1,7 +1,10 @@
+# U ARE HERE:
+#      focusing on creating connection which can send and receive data
+#      fix sending data portion/ logic
+#      touch up receiving data portion/ logic
+
 import argparse
 import socket
-
-# import ipaddress
 import sys
 
 
