@@ -7,6 +7,7 @@ import argparse
 import socket
 import sys
 
+
 def network_port(value: str) -> int:
     ivalue = int(value)
     if ivalue <= 0 or ivalue > 65535:
@@ -28,7 +29,9 @@ def main() -> None:
     exclusive_group.add_argument("-l", "--listen", action="store_true")
     exclusive_group.add_argument("-H", "--host-ip", action="store")
 
-    parser.add_argument("-p", "--port", action="store", nargs=1, required=True, type=network_port)
+    parser.add_argument(
+        "-p", "--port", action="store", nargs=1, required=True, type=network_port
+    )
 
     # Get the list of arguments:
     args = parser.parse_args()
@@ -79,12 +82,12 @@ def main() -> None:
             sys.exit(1)
 
         # Set connection:
-        connection = cs.connect((HOST_IP, HOST_PORT))
-
+        connection = cs
+        connection.connect((HOST_IP, HOST_PORT))
 
     # Receive and send data:
-    SEND_DATA = b""
-    RECEIVE_DATA = b""
+    SEND_DATA: bytes = b""
+    RECEIVE_DATA: bytes = b""
 
     print(f"Connection = {connection}")
     if connection != None:
@@ -92,11 +95,11 @@ def main() -> None:
             while connection:
                 print("tiddies")
 
-                rdata = connection.recv(1024)
-                input_chunk = input()
+                rdata: bytes = connection.recv(1024)
+                input_chunk: str = input()
 
-                SEND_DATA += input_chunk
-                input_chunk = b""
+                SEND_DATA += input_chunk.encode("utf-8")
+                input_chunk = ""
                 # sudo code:
                 #       for every loop of the while loop
                 #           check for user input (data to send)
@@ -104,6 +107,7 @@ def main() -> None:
 
                 if rdata:
                     RECEIVE_DATA += rdata
+                    rdata = b""
                     print(f"Received data: {str(RECEIVE_DATA)}")
                 elif len(SEND_DATA) > 0:
                     # Send the data
