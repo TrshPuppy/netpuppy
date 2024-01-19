@@ -87,12 +87,21 @@ def main() -> None:
                 print("tiddies")
 
                 rdata = connection.recv(1024)
-                # sdata = "send test data"
+                input_chunk = input()
+
+                SEND_DATA += input_chunk
+                input_chunk = b""
+                # sudo code:
+                #       for every loop of the while loop
+                #           check for user input (data to send)
+                #       * probs can't send and receive at the same time?
 
                 if rdata:
                     RECEIVE_DATA += rdata
                     print(f"Received data: {str(RECEIVE_DATA)}")
-                else:
+                elif len(SEND_DATA) > 0:
+                    # Send the data
+
                     print("tiddies else thing line 96")
                     # SEND_DATA += sdata
 
@@ -103,4 +112,6 @@ def main() -> None:
             print(f"Unknown error: {err}")
 
         finally:
+            # NOTE FOR CLOSE:
+            #   Try putting in first except only (probably already closed if unknown errror)
             connection.close()
