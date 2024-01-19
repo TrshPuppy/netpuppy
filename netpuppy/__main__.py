@@ -7,6 +7,12 @@ import argparse
 import socket
 import sys
 
+def network_port(value: str) -> int:
+    ivalue = int(value)
+    if ivalue <= 0 or ivalue > 65535:
+        raise argparse.ArgumentTypeError("%s is an invalid port number" % value)
+    return ivalue
+
 
 def main() -> None:
     # Make the CLI arg parser:
@@ -22,7 +28,7 @@ def main() -> None:
     exclusive_group.add_argument("-l", "--listen", action="store_true")
     exclusive_group.add_argument("-H", "--host-ip", action="store")
 
-    parser.add_argument("-p", "--port", action="store", nargs=1, required=True)
+    parser.add_argument("-p", "--port", action="store", nargs=1, required=True, type=network_port)
 
     # Get the list of arguments:
     args = parser.parse_args()
@@ -73,8 +79,8 @@ def main() -> None:
             sys.exit(1)
 
         # Set connection:
-        connection = cs
-        connection.connect((HOST_IP, int(HOST_PORT)))
+        connection = cs.connect((HOST_IP, HOST_PORT))
+
 
     # Receive and send data:
     SEND_DATA = b""
