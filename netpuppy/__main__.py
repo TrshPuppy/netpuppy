@@ -8,7 +8,7 @@ import socket
 import sys
 
 
-def main():
+def main() -> None:
     # Make the CLI arg parser:
     parser = argparse.ArgumentParser(
         prog="netpuppy",  # ./netpuppy
@@ -29,11 +29,13 @@ def main():
     print(f" args = {args}")
 
     # Create the socket and connection depending on the input:
-    connection = None
+    connection: socket.socket | None = None
 
+    # Server mode
     if args.listen:
+        print("listen block")
         SERVER_IP = "0.0.0.0"
-        SERVER_PORT = 44440
+        SERVER_PORT = int(args.port[0])
 
         # Create a socket:
         ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -41,48 +43,65 @@ def main():
         ls.listen()
 
         # Set connection:
-        connection, addr = ls.accept()
+        connection = ls
+        connection.accept()
 
+    # Client mode
     elif args.host_ip:
         HOST_IP = args.host_ip
         HOST_PORT = args.port[0]
 
         # Create a socket:
-        cs = None
+        cs: socket.socket | None = None
 
         try:
             # Try to create an ipv4 socket and connection:
             cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print("connection ipv 4 block")
 
         except socket.error as err:
             # If IPv4 fails, try an  IPv6 socket:
-            cs = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            print(f"IPv4 failed: {err}")
+            try:
+                cs = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                print("connection ipv 6 block")
+            except socket.error as errrrrr:
+                print(f"IPv6 failed: {errrrrr}")
+                sys.exit(1)
 
         except:
             print("Failed to create socket")
             sys.exit(1)
 
         # Set connection:
-        connection = cs.connect((HOST_IP, int(HOST_PORT)))
+        connection = cs
+        connection.connect((HOST_IP, int(HOST_PORT)))
 
     # Receive and send data:
     SEND_DATA = b""
     RECEIVE_DATA = b""
 
-    while True:
+    print(f"Connection = {connection}")
+    # if connection != None:
+    while connection:
+        print("tiddies")
         try:
             rdata = connection.recv(1024)
-            sdata = "send test data"
+            # sdata = "send test data"
 
             if rdata:
                 RECEIVE_DATA += rdata
                 print(f"Received data: {str(RECEIVE_DATA)}")
             else:
-                SEND_DATA += sdata
+                print("tiddies else thing line 96")
+                # SEND_DATA += sdata
 
         except KeyboardInterrupt:
-            connection.close()
-            sys.exit(1)
+            print(f"Keyboard interrupt: {KeyboardInterrupt}")
+
+            break
         except Exception as err:
             print(f"Unknown error: {err}")
-            sys.exit(1)
+
+            break
+    connection.close()
