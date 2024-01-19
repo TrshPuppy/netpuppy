@@ -87,7 +87,9 @@ ${mypy_report}: ${venv} ${source_files} ${test_files}
 		--incremental \
 		--cache-dir=${build_path}/mypy_cache \
 		--linecoverage-report ${build_path}
-	
+
+# Check types using mypy
+.PHONY: check_types	
 check_types: ${mypy_report}
 
 # Run the tests
