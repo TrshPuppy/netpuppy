@@ -43,8 +43,7 @@ def main() -> None:
         ls.listen()
 
         # Set connection:
-        connection = ls
-        connection.accept()
+        connection, addr = ls.accept()
 
     # Client mode
     elif args.host_ip:
@@ -82,26 +81,26 @@ def main() -> None:
     RECEIVE_DATA = b""
 
     print(f"Connection = {connection}")
-    # if connection != None:
-    while connection:
-        print("tiddies")
+    if connection != None:
         try:
-            rdata = connection.recv(1024)
-            # sdata = "send test data"
+            while connection:
+                print("tiddies")
 
-            if rdata:
-                RECEIVE_DATA += rdata
-                print(f"Received data: {str(RECEIVE_DATA)}")
-            else:
-                print("tiddies else thing line 96")
-                # SEND_DATA += sdata
+                rdata = connection.recv(1024)
+                # sdata = "send test data"
+
+                if rdata:
+                    RECEIVE_DATA += rdata
+                    print(f"Received data: {str(RECEIVE_DATA)}")
+                else:
+                    print("tiddies else thing line 96")
+                    # SEND_DATA += sdata
 
         except KeyboardInterrupt:
             print(f"Keyboard interrupt: {KeyboardInterrupt}")
 
-            break
         except Exception as err:
             print(f"Unknown error: {err}")
 
-            break
-    connection.close()
+        finally:
+            connection.close()
