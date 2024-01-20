@@ -3,7 +3,7 @@ def sum(a: int, b: int) -> int:
 
 
 def banner() -> str:
-    banner = """
+    banner: str = """
 TrshPuppy brings you...
 
 |8PPPPe                    ___      .++.
@@ -25,3 +25,19 @@ TrshPuppy brings you...
            data   for   you!
 """
     return banner
+
+
+def user_selection_update(h: str, p: str, l: str) -> str:
+    update: str = """
+           bork!
+      __  /  
+ (___()'`;       |Host: {host}
+ / )   /`        |Port: {port}
+ /\\'--/\\         |Mode: {mode}
+    """.format(
+        host=h,
+        port=p,
+        mode="Server" if l else "Client",
+    )
+
+    return update

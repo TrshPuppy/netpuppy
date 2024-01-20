@@ -3,7 +3,7 @@
 #      fix sending data portion/ logic
 #      touch up receiving data portion/ logic
 
-from netpuppy.utils import banner
+from netpuppy.utils import banner, user_selection_update
 import argparse
 import socket
 import sys
@@ -17,7 +17,6 @@ def network_port(value: str) -> int:
 
 
 def main() -> None:
-    print(banner())
     # Make the CLI arg parser:
     parser = argparse.ArgumentParser(
         prog="netpuppy",  # ./netpuppy
@@ -36,8 +35,15 @@ def main() -> None:
     )
 
     # Get the list of arguments:
-    args = parser.parse_args()
-    print(f" args = {args}")
+    try:
+        # If netpuppy was executed w/ valid args, print the banner:
+        args = parser.parse_args()
+        print(banner())
+    except argparse.ArgumentError:
+        sys.exit(1)
+
+    # Print the args:
+    print(user_selection_update(args.host_ip, args.port[0], args.listen))
 
     # Create the socket and connection depending on the input:
     connection: socket.socket | None = None
