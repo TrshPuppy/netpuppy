@@ -3,6 +3,7 @@
 #      fix sending data portion/ logic
 #      touch up receiving data portion/ logic
 
+from netpuppy.utils import banner
 import argparse
 import socket
 import sys
@@ -16,6 +17,7 @@ def network_port(value: str) -> int:
 
 
 def main() -> None:
+    print(banner())
     # Make the CLI arg parser:
     parser = argparse.ArgumentParser(
         prog="netpuppy",  # ./netpuppy
