@@ -7,7 +7,7 @@ def banner() -> str:
 TrshPuppy brings you...
 
 |8PPPPe                    ___      .++.
-|8    |8  |eeee |eeeee  __/_  `.  .'    `.
+|8    |8  |eeee |eeeee  __/_, `.  .'    `. .
 |8e   |8  |8      |8    \_,  | \_'  /   )`-')
 |88   |8  |8eee   |8e    U ) `-`    \  ((`\"`
 |88   |8  |88     |88    ___Y  ,    .'7 /| 
@@ -28,16 +28,30 @@ TrshPuppy brings you...
 
 
 def user_selection_update(h: str, p: str, l: str) -> str:
-    update: str = """
+    update: str = ""
+    if not l:
+        update = """
            bork!
       __  /  
- (___()'`;       |Host: {host}
- / )   /`        |Port: {port}
- /\\'--/\\         |Mode: {mode}
+ (___()'`;      |Host: {host}
+ / )   /`       |Port: {port}
+ /\\'--/\\        |Mode: {mode}
     """.format(
-        host=h,
-        port=p,
-        mode="Server" if l else "Client",
-    )
+            host=h,
+            port=p,
+            mode="Client",
+        )
+
+    else:
+        update = """
+    .-.  *sneef sneef*
+   / (_   
+  ( "  6\___o   |Host: localhost
+  /  (  ___/    |Port: {port}
+ /     /  U     |Mode: {mode}
+    """.format(
+            port=p,
+            mode="Server",
+        )
 
     return update
