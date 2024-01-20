@@ -46,11 +46,11 @@ def main() -> None:
     print(user_selection_update(args.host_ip, args.port[0], args.listen))
 
     # Create the socket and connection depending on the input:
+    print("Creating soocket...")
     connection: socket.socket | None = None
 
     # Server mode
     if args.listen:
-        print("listen block")
         SERVER_IP = "0.0.0.0"
         SERVER_PORT = int(args.port[0])
 
@@ -60,6 +60,7 @@ def main() -> None:
         ls.listen()
 
         # Set connection:
+        print("Trying connection...")
         connection, addr = ls.accept()
 
     # Client mode
@@ -73,11 +74,10 @@ def main() -> None:
         try:
             # Try to create an ipv4 socket and connection:
             cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print("connection ipv 4 block")
 
         except socket.error as err:
             # If IPv4 fails, try an  IPv6 socket:
-            print(f"IPv4 failed: {err}")
+            # print(f"IPv4 failed: {err}")
             try:
                 cs = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
                 print("connection ipv 6 block")
@@ -90,6 +90,7 @@ def main() -> None:
             sys.exit(1)
 
         # Set connection:
+        print("Trying connection...")
         connection = cs
         connection.connect((HOST_IP, HOST_PORT))
 
@@ -97,12 +98,14 @@ def main() -> None:
     SEND_DATA: bytes = b""
     RECEIVE_DATA: bytes = b""
 
-    print(f"Connection = {connection}")
+    # print(f"Connection = {connection}")
     if connection != None:
+        peer = connection.getpeername()
+        peername: str = peer[0]
+        peer_port: str = peer[1]
         try:
+            print(f"Connection established to: {peername} port {peer_port}")
             while connection:
-                print("tiddies")
-
                 rdata: bytes = connection.recv(1024)
                 input_chunk: str = input()
 
@@ -127,6 +130,7 @@ def main() -> None:
             print(f"Keyboard interrupt: {KeyboardInterrupt}")
 
         except Exception as err:
+            print("Connection failed.")
             print(f"Unknown error: {err}")
 
         finally:

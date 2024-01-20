@@ -29,6 +29,7 @@ TrshPuppy brings you...
 
 def user_selection_update(h: str, p: str, l: str) -> str:
     update: str = ""
+
     if not l:
         update = """
            bork!
