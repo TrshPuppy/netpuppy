@@ -98,11 +98,11 @@ def main() -> None:
     SEND_DATA: bytes = b""
     RECEIVE_DATA: bytes = b""
 
-    # print(f"Connection = {connection}")
-    if connection != None:
+    if connection:
         peer = connection.getpeername()
         peername: str = peer[0]
         peer_port: str = peer[1]
+
         try:
             print(f"Connection established to: {peername} port {peer_port}")
             while connection:
@@ -134,6 +134,10 @@ def main() -> None:
             print(f"Unknown error: {err}")
 
         finally:
-            # NOTE FOR CLOSE:
-            #   Try putting in first except only (probably already closed if unknown errror)
-            connection.close()
+            if connection:
+                connection.close()
+        # NOTE FOR CLOSE:
+        #   Try putting in first except only (probably already closed if unknown errror)
+    else:
+        print("Connection failed.")
+        sys.exit(1)
