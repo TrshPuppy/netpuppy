@@ -1,8 +1,3 @@
-# U ARE HERE:
-#      focusing on creating connection which can send and receive data
-#      fix sending data portion/ logic
-#      touch up receiving data portion/ logic
-
 from netpuppy.utils import banner, user_selection_update
 import argparse
 import socket
@@ -51,11 +46,11 @@ def main() -> None:
 
     # Server mode
     if args.listen:
-        SERVER_IP = "0.0.0.0"
-        SERVER_PORT = int(args.port[0])
+        SERVER_IP: str = "0.0.0.0"
+        SERVER_PORT: int = int(args.port[0])
 
         # Create a socket:
-        ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ls: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ls.bind((SERVER_IP, SERVER_PORT))
         ls.listen()
 
@@ -65,8 +60,8 @@ def main() -> None:
 
     # Client mode
     elif args.host_ip:
-        HOST_IP = args.host_ip
-        HOST_PORT = args.port[0]
+        HOST_IP: str = args.host_ip
+        HOST_PORT: int = args.port[0]
 
         # Create a socket:
         cs: socket.socket | None = None
@@ -106,7 +101,10 @@ def main() -> None:
         try:
             print(f"Connection established to: {peername} port {peer_port}")
             while connection:
+                # Data received:
                 rdata: bytes = connection.recv(1024)
+
+                # Send data (inout from user):
                 input_chunk: str = input()
 
                 SEND_DATA += input_chunk.encode("utf-8")
@@ -116,7 +114,7 @@ def main() -> None:
                 #           check for user input (data to send)
                 #       * probs can't send and receive at the same time?
 
-                if rdata:
+                if len(rdata) > 0:
                     RECEIVE_DATA += rdata
                     rdata = b""
                     print(f"Received data: {str(RECEIVE_DATA)}")
@@ -136,8 +134,7 @@ def main() -> None:
         finally:
             if connection:
                 connection.close()
-        # NOTE FOR CLOSE:
-        #   Try putting in first except only (probably already closed if unknown errror)
+
     else:
         print("Connection failed.")
         sys.exit(1)
