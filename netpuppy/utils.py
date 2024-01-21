@@ -27,10 +27,10 @@ TrshPuppy brings you...
     return banner
 
 
-def user_selection_update(h: str, p: str, l: str) -> str:
+def user_selection_update(h: str, p: str, c: str) -> str:
     update: str = ""
 
-    if not l:
+    if c == "connect":
         update = """
            bork!
       __  /  
@@ -47,10 +47,11 @@ def user_selection_update(h: str, p: str, l: str) -> str:
         update = """
     .-.  *sneef sneef*
    / (_   
-  ( "  6\___o   |Host: localhost
+  ( "  6\___o   |Host: {host}
   /  (  ___/    |Port: {port}
  /     /  U     |Mode: {mode}
     """.format(
+            host=h,
             port=p,
             mode="Server",
         )

@@ -23,16 +23,22 @@ def main() -> None:
         description="Launch a puppy to sneef and fetch data for you!",
         epilog="Tell netpuppy he was a good boi.",
     )
+    
+    
+    # Add arguments as individual subparsed groups - this gains us the ability to easily extend our 'commands' in the future
+    # as well as fine grained control over the arguments for each command. This does come with a slight drawback of 
+    # having to repeat shared argument definitions (like port), but seems worth the tradeoff
+    subparsers = parser.add_subparsers()
 
-    # Add arguments
-    #   First group is mutually exclusive (listen vs host-ip/ connect)
-    exclusive_group = parser.add_mutually_exclusive_group(required=True)
-    exclusive_group.add_argument("-l", "--listen", action="store_true")
-    exclusive_group.add_argument("-H", "--host-ip", action="store")
+    sp = subparsers.add_parser("connect", help="Connect to a host (Client Mode)")
+    sp.set_defaults(cmd = "connect")
+    sp.add_argument("host_ip", help="Host IP Address", type=str) # required input
+    sp.add_argument("port", help="Host Port", type=network_port, nargs="?", default="44440") # optional with default
 
-    parser.add_argument(
-        "-p", "--port", action="store", nargs=1, required=True, type=network_port
-    )
+    sp = subparsers.add_parser("listen", help="Listen on a port (Server Mode)")
+    sp.set_defaults(cmd = "listen")
+    sp.set_defaults(host_ip = "0.0.0.0") # default to all interfaces
+    sp.add_argument("port", help="Listen Port", type=network_port, nargs="?", default="44440") # optional with default
 
     # Get the list of arguments:
     try:
@@ -43,16 +49,16 @@ def main() -> None:
         sys.exit(1)
 
     # Print the args:
-    print(user_selection_update(args.host_ip, args.port[0], args.listen))
+    print(user_selection_update(args.host_ip, args.port, args.cmd))
 
     # Create the socket and connection depending on the input:
     print("Creating soocket...")
     connection: socket.socket | None = None
 
     # Server mode
-    if args.listen:
+    if args.cmd == "listen":
         SERVER_IP = "0.0.0.0"
-        SERVER_PORT = int(args.port[0])
+        SERVER_PORT = args.port
 
         # Create a socket:
         ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -64,9 +70,9 @@ def main() -> None:
         connection, addr = ls.accept()
 
     # Client mode
-    elif args.host_ip:
+    elif args.cmd == "connect":
         HOST_IP = args.host_ip
-        HOST_PORT = args.port[0]
+        HOST_PORT = args.port
 
         # Create a socket:
         cs: socket.socket | None = None
