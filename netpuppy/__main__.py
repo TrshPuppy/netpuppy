@@ -23,22 +23,25 @@ def main() -> None:
         description="Launch a puppy to sneef and fetch data for you!",
         epilog="Tell netpuppy he was a good boi.",
     )
-    
-    
+
     # Add arguments as individual subparsed groups - this gains us the ability to easily extend our 'commands' in the future
-    # as well as fine grained control over the arguments for each command. This does come with a slight drawback of 
+    # as well as fine grained control over the arguments for each command. This does come with a slight drawback of
     # having to repeat shared argument definitions (like port), but seems worth the tradeoff
     subparsers = parser.add_subparsers()
 
     sp = subparsers.add_parser("connect", help="Connect to a host (Client Mode)")
-    sp.set_defaults(cmd = "connect")
-    sp.add_argument("host_ip", help="Host IP Address", type=str) # required input
-    sp.add_argument("port", help="Host Port", type=network_port, nargs="?", default="44440") # optional with default
+    sp.set_defaults(cmd="connect")
+    sp.add_argument("host_ip", help="Host IP Address", type=str)  # required input
+    sp.add_argument(
+        "port", help="Host Port", type=network_port, nargs="?", default="44440"
+    )  # optional with default
 
     sp = subparsers.add_parser("listen", help="Listen on a port (Server Mode)")
-    sp.set_defaults(cmd = "listen")
-    sp.set_defaults(host_ip = "0.0.0.0") # default to all interfaces
-    sp.add_argument("port", help="Listen Port", type=network_port, nargs="?", default="44440") # optional with default
+    sp.set_defaults(cmd="listen")
+    sp.set_defaults(host_ip="0.0.0.0")  # default to all interfaces
+    sp.add_argument(
+        "port", help="Listen Port", type=network_port, nargs="?", default="44440"
+    )  # optional with default
 
     # Get the list of arguments:
     try:
