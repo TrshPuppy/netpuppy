@@ -52,7 +52,6 @@ def main() -> None:
 
         # Create a socket:
         ls: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # ls.setblocking(False)
         ls.bind((SERVER_IP, SERVER_PORT))
         ls.listen()
 
@@ -71,11 +70,9 @@ def main() -> None:
         try:
             # Try to create an ipv4 socket and connection:
             cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # cs.setblocking(False)
 
         except socket.error as err:
             # If IPv4 fails, try an  IPv6 socket:
-            # print(f"IPv4 failed: {err}")
             try:
                 cs = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
                 print("connection ipv 6 block")
@@ -92,86 +89,27 @@ def main() -> None:
         connection = cs
         connection.connect((HOST_IP, HOST_PORT))
 
-    # Receive and send data:
-    SEND_DATA: bytes = b""
-    RECEIVE_DATA: bytes = b""
-    # connection.setblocking(False)
-
     if connection:
-        peer = connection.getpeername()
-        peername: str = peer[0]
-        peer_port: str = peer[1]
+        # Get peer name and port, create SocketConnection object:
+        peer = connection.getpeername()  # [peername, peer port]
+        current_connection: SocketConnection = SocketConnection(connection, peer[0])
 
-        current_connection: SocketConnection = SocketConnection(connection, peername)
+        # Update user:
+        print(f"Connection established to: {current_connection.address} port {peer[1]}")
 
-        print(f"Connection established to: {peername} port {peer_port}")
         try:
-            rdata: bytes = b""
-            raddress: str = ""
             while connection:
-                print("new loop")
-                # Data received:
-                # sdata: str = input("Enter data to send: ")
-                sdata = input()
-                current_connection.send_data_to_peer(sdata.encode("utf-8"))
-                sdata = ""
-
-                if len(current_connection.to_send) > 0:
-                    connection.sendall(current_connection.get_data_to_send())
-
-                current_connection.receive_data_from_peer(connection.recv(1024))
-
-                if len(current_connection.received) > 0:
-                    print(f"Received data: {current_connection.read_received_data()}")
-                    rdata = b""
-
-            # while len(sys.stdin.readline()) <= 0:
-            #     rdata, raddress = connection.recvfrom(1)
-            #     print(f"received 1 byte: {rdata}")
-            #     RECEIVE_DATA += rdata
-            #     rdata = b""
-            #     break
-
-            # sdata = sys.stdin.readline()
-            # SEND_DATA += sdata.encode("utf-8")
-            # sdata = ""
-
-            # # Print received data:
-            # print(f"Received data: {str(RECEIVE_DATA)}")
-            # RECEIVE_DATA = b""
-
-            # # Send STDIN data:
-            # connection.sendall(SEND_DATA)
-            # SEND_DATA = b""
-
-            # print(f"stdin = {sdata}")
-
-            # if len(sdata) > 0:
-            #     print("send data not nothing")
-            #     # Send the data
-            #     # SEND_DATA += sdata.encode("utf-8")
-
-            #     connection.sendall(sdata.encode("utf-8"))
-            #     # SEND_DATA = b""
-            #     # sdata = b""
-
-            # else:
-            #     rdata, raddress = connection.recvfrom(1024)
-            #     print(f"rdata = {rdata}")
-            #     rdata = b""
-            # if len(rdata) > 0:
-            #     print(f"Received data: {str(RECEIVE_DATA)}")
-            #     RECEIVE_DATA += rdata
-            #     RECEIVE_DATA = b""
-            #     rdata = b""
-            #     continue
+                current_connection.read_stream()
+                current_connection.write_stream()
 
         except KeyboardInterrupt:
             print(f"Keyboard interrupt: {KeyboardInterrupt}")
+            current_connection.running = False
 
         except Exception as err:
             print("Connection failed.")
             print(f"Unknown error: {err}")
+            current_connection.running = False
 
         finally:
             if connection:

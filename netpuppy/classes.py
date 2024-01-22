@@ -1,22 +1,39 @@
+import threading
+
+
 class SocketConnection:
     def __init__(self, socket, address):
         self.socket = socket
         self.address = address
         self.received = b""
         self.to_send = b""
+        self.running = True
 
-    def receive_data_from_peer(self, data: bytes) -> None:
-        self.received += data
+        # Start threads for reading and writing to socket:
+        threading.Thread(target=self.read_stream).start()
+        threading.Thread(target=self.write_stream).start()
 
-    def read_received_data(self) -> bytes:
-        data = str(self.received)
-        self.received = b""
-        return data
+    def read_stream(self) -> None:
+        while self.running:
+            data: bytes = self.socket.recv(1024)
+            if not data:
+                continue
 
-    def send_data_to_peer(self, data: bytes) -> None:
-        self.to_send += data
+            print(data.decode("utf-8"))
+            data = b""
 
-    def get_data_to_send(self) -> bytes:
-        data = self.to_send
-        self.to_send = b""
-        return data
+        return
+
+    def write_stream(self) -> None:
+        while self.running:
+            try:
+                data: str = input()
+            except EOFError:
+                self.running = False
+            if not data:
+                continue
+
+            self.socket.sendall(data.encode("utf-8"))
+            data = b""
+
+        return
