@@ -8,8 +8,8 @@ TrshPuppy brings you...
 
 |8PPPPe                  ___      .++.
 |8    |8 |eeee |eeeee __/_, `.  .'    `. .
-|8e   |8 |8      |8   \_,  | \_'  /   )`-')
-|88   |8 |8eee   |8e   U ) `-`    \  ((`\"`
+|8e   |8 |8      |8   \\_,  | \\_'  /   )`-')
+|88   |8 |8eee   |8e   U ) `-`    \\  ((`\"`
 |88   |8 |88     |88   ___Y  ,    .'7 /| 
 |88___|8_|88ee___|88__(_,___/___.'_(_/_/_
 
@@ -27,10 +27,10 @@ TrshPuppy brings you...
     return banner
 
 
-def user_selection_update(h: str, p: str, l: str) -> str:
+def user_selection_update(h: str, p: str, c: str) -> str:
     update: str = ""
 
-    if not l:
+    if c == "connect":
         update = """
            bork!
       __  /  
@@ -47,10 +47,11 @@ def user_selection_update(h: str, p: str, l: str) -> str:
         update = """
     .-.  *sneef sneef*
    / (_   
-  ( "  6\___o   |Host: localhost
+  ( "  6\\___o   |Host: {host}
   /  (  ___/    |Port: {port}
  /     /  U     |Mode: {mode}
     """.format(
+            host=h,
             port=p,
             mode="Server",
         )
