@@ -1,12 +1,8 @@
-# U ARE HERE:
-#      focusing on creating connection which can send and receive data
-#      fix sending data portion/ logic
-#      touch up receiving data portion/ logic
-
 from netpuppy.utils import banner, user_selection_update
 import argparse
 import socket
 import sys
+from netpuppy.classes import SocketConnection
 
 
 def network_port(value: str) -> int:
@@ -63,8 +59,9 @@ def main() -> None:
         SERVER_IP = "0.0.0.0"
         SERVER_PORT = args.port
 
+
         # Create a socket:
-        ls = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ls: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ls.bind((SERVER_IP, SERVER_PORT))
         ls.listen()
 
@@ -77,6 +74,7 @@ def main() -> None:
         HOST_IP = args.host_ip
         HOST_PORT = args.port
 
+
         # Create a socket:
         cs: socket.socket | None = None
 
@@ -86,7 +84,6 @@ def main() -> None:
 
         except socket.error as err:
             # If IPv4 fails, try an  IPv6 socket:
-            # print(f"IPv4 failed: {err}")
             try:
                 cs = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
                 print("connection ipv 6 block")
@@ -103,50 +100,32 @@ def main() -> None:
         connection = cs
         connection.connect((HOST_IP, HOST_PORT))
 
-    # Receive and send data:
-    SEND_DATA: bytes = b""
-    RECEIVE_DATA: bytes = b""
-
     if connection:
-        peer = connection.getpeername()
-        peername: str = peer[0]
-        peer_port: str = peer[1]
+        # Get peer name and port, create SocketConnection object:
+        peer = connection.getpeername()  # [peername, peer port]
+        current_connection: SocketConnection = SocketConnection(connection, peer[0])
+
+        # Update user:
+        print(f"Connection established to: {current_connection.address} port {peer[1]}")
 
         try:
-            print(f"Connection established to: {peername} port {peer_port}")
             while connection:
-                rdata: bytes = connection.recv(1024)
-                input_chunk: str = input()
-
-                SEND_DATA += input_chunk.encode("utf-8")
-                input_chunk = ""
-                # sudo code:
-                #       for every loop of the while loop
-                #           check for user input (data to send)
-                #       * probs can't send and receive at the same time?
-
-                if rdata:
-                    RECEIVE_DATA += rdata
-                    rdata = b""
-                    print(f"Received data: {str(RECEIVE_DATA)}")
-                elif len(SEND_DATA) > 0:
-                    # Send the data
-
-                    print("tiddies else thing line 96")
-                    # SEND_DATA += sdata
+                current_connection.read_stream()
+                current_connection.write_stream()
 
         except KeyboardInterrupt:
             print(f"Keyboard interrupt: {KeyboardInterrupt}")
+            current_connection.running = False
 
         except Exception as err:
             print("Connection failed.")
             print(f"Unknown error: {err}")
+            current_connection.running = False
 
         finally:
             if connection:
                 connection.close()
-        # NOTE FOR CLOSE:
-        #   Try putting in first except only (probably already closed if unknown errror)
+
     else:
         print("Connection failed.")
         sys.exit(1)
