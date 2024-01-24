@@ -59,7 +59,6 @@ def main() -> None:
         SERVER_IP = "0.0.0.0"
         SERVER_PORT = args.port
 
-
         # Create a socket:
         ls: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ls.bind((SERVER_IP, SERVER_PORT))
@@ -73,7 +72,6 @@ def main() -> None:
     elif args.cmd == "connect":
         HOST_IP = args.host_ip
         HOST_PORT = args.port
-
 
         # Create a socket:
         cs: socket.socket | None = None

@@ -1,24 +1,31 @@
+import random
+import os
+
+
 def sum(a: int, b: int) -> int:
     return a + b
 
 
+def get_random_banner():
+    working_dir = os.path.dirname(os.path.abspath(__file__))
+    banner_dir = os.path.join(working_dir, "banners")
+    banners = [file for file in os.listdir(banner_dir) if file.endswith(".txt")]
+
+    if not banners:
+        print("No banners found :~(")
+
+    chosen_one = os.path.join(banner_dir, random.choice(banners))
+
+    with open(chosen_one, "r") as file:
+        return file.read()
+
+
 def banner() -> str:
-    banner: str = """
+    random_banner = get_random_banner()
+    banner: str = f"""
 TrshPuppy brings you...
 
-|8PPPPe                  ___      .++.
-|8    |8 |eeee |eeeee __/_, `.  .'    `. .
-|8e   |8 |8      |8   \\_,  | \\_'  /   )`-')
-|88   |8 |8eee   |8e   U ) `-`    \\  ((`\"`
-|88   |8 |88     |88   ___Y  ,    .'7 /| 
-|88___|8_|88ee___|88__(_,___/___.'_(_/_/_
-
-|8PPPPe
-|8    |8 |e   .e |eeeee  |eeeee  |e   .e
-|8eeee8  |8   |8 |8   |8 |8   |8 |8   |8
-|88      |8e  |8 |8eee8  |8eee8  |8eee8
-|88      |88  |8 |88     |88      |88
-|88______|88ee8__|88_____|88______|88____
+{random_banner.strip()}
 
            Launch a puppy to
          ~ sneef  and  fetch ~
