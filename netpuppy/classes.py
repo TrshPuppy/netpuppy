@@ -1,13 +1,14 @@
+import socket
 import threading
 
 
 class SocketConnection:
-    def __init__(self, socket, address):
+    def __init__(self, socket: socket.socket, address: str) -> None:
         self.socket = socket
         self.address = address
-        self.received = b""
-        self.to_send = b""
-        self.running = True
+        self.received: bytes = b""
+        self.to_send: bytes = b""
+        self.running: bool = True
 
         # Start threads for reading and writing to socket:
         threading.Thread(target=self.read_stream).start()
@@ -34,6 +35,6 @@ class SocketConnection:
                 continue
 
             self.socket.sendall(data.encode("utf-8"))
-            data = b""
+            data = ""
 
         return

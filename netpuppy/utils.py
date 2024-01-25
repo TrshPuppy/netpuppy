@@ -6,22 +6,26 @@ def sum(a: int, b: int) -> int:
     return a + b
 
 
-def get_random_banner():
-    working_dir = os.path.dirname(os.path.abspath(__file__))
-    banner_dir = os.path.join(working_dir, "banners")
-    banners = [file for file in os.listdir(banner_dir) if file.endswith(".txt")]
+def get_random_banner() -> str:
+    working_dir: str = os.path.dirname(os.path.abspath(__file__))
+    banner_dir: str = os.path.join(working_dir, "banners")
+    banners: list[str] = [
+        file for file in os.listdir(banner_dir) if file.endswith(".txt")
+    ]
 
     if not banners:
         print("No banners found :~(")
+        return ""
 
-    chosen_one = os.path.join(banner_dir, random.choice(banners))
+    chosen_one: str = os.path.join(banner_dir, random.choice(banners))
 
     with open(chosen_one, "r") as file:
-        return file.read()
+        banner_to_return: str = file.read()
+        return banner_to_return
 
 
 def banner() -> str:
-    random_banner = get_random_banner()
+    random_banner: str = get_random_banner()
     banner: str = f"""
 TrshPuppy brings you...
 
