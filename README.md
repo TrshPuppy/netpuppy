@@ -25,6 +25,18 @@ The `argparse` library is used to handle command-line arguments for the `netpupp
 **Usage in Project:** 
 The `socket` library is employed to establish network connections, send, and receive data.
 
+### 3. Threading
+[Threading](https://docs.python.org/3/library/threading.html) is a built in Python lib which constructs higher-level threading interfaces.
+
+**Usage in Project:**
+The `threading` lib is used in this project to allow for data to be sent and received from either endpoint of the connection established by NetPuppy without blocking or collision.
+
+### 4. Subprocess
+[Subprocess](https://docs.python.org/3/library/subprocess.html) is a built in libraryu which allows you to spawn processes and connect to their input, output, and error pipes.
+
+**Usage in Project:**
+The `subprocess` module is being used to help us execute simple commands on the serving endpoint of the connection.
+
 ## Development Dependencies
 
 This project uses several development tools to ensure code quality, type safety, and to run tests. Here's a brief overview of these tools:
@@ -98,3 +110,7 @@ netpuppy -l -p 69
 ```
 ## Why Python?
 Python is the language for this tool for now, with plans to migrate to a lower-level, less-abstracted language in the future (such as Golang perhaps :) ?)
+# Contribution:
+Fork this repo, make some changes, and submit a PR. Please be detailed about the changes you're attempting to implement!
+## BONUS!
+If you want an easy way to contribute, you can always create your own NetPuppy banner and add it to the `/banners` directory. Just review what the other banners look like and match the syntax, etc.. <3
