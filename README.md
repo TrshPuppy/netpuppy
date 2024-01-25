@@ -97,16 +97,16 @@ make clean
 Once cloned, run `make env`, then afer activating the python venv with either `source .venv/bin/activate` should be able to run NetPuppy using `netpuppy`.
 
 ### Flags
-As it's being planned & built right now, NetPuppy will have two modes: client & server. 
+As it's being planned & built right now, NetPuppy will have two modes: listen & connect. However, once the connection is made, both ends listen as well as serve.
 #### Client mode
-Client is the default mode & will initiate a TCP connection to a remote host address (`-H`) and port number (`-p`):
+Client is the default mode & will initiate a TCP connection to a remote host address. Just tell NetPuppy to `listen`, followed by the host IP and port.
 ```
-netpuppy -H 10.0.2.5 -p 69
+netpuppy connect 10.0.2.5 69
 ```
 #### Server/ Listener mode
-Give the `-l` flag to put NetPuppy into listening mode. In this mode NetPuppy will default to your primary network interface and will listen to the posrt you provide via `-p`.
+To have NetPuppy listen on `0.0.0.0` and on a specific port, just tell NetPuppy `listen` followed by the port number.
 ```
-netpuppy -l -p 69
+netpuppy listen 69
 ```
 ## Why Python?
 Python is the language for this tool for now, with plans to migrate to a lower-level, less-abstracted language in the future (such as Golang perhaps :) ?)
