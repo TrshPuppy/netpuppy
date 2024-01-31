@@ -22,7 +22,7 @@ classifiers = [
 dev = ["black", "mypy", "pytest", "pytest-cov", "build"]
 
 [project.scripts]
-netpuppy = "netpuppy.__main__:main"
+netpuppy = "netpuppy.__main__:lil_wayne"
 
 [project.urls]
 homepage = "https://github.com/TrshPuppy/netpuppy"
