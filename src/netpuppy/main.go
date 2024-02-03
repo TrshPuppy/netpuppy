@@ -5,9 +5,32 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	// NetPuppy modules:
+	"netpuppy/utils"
 )
 
+//func worker(done chan bool) {
+//	fmt.Print("working...")
+//	time.Sleep(time.Second * 5)
+//	fmt.Println("done")
+//
+//	done <- true
+//	done <- true
+//	done <- true
+//	fmt.Println("after done")
+//}
+
 func main() {
+	//	done := make(chan bool, 1)
+	//	done <- true
+	//	go worker(done)
+	//	//	<-done
+	//	fmt.Printf("tiddies\n")
+	//	time.Sleep(time.Second * 3)
+	//	fmt.Printf("tiddies 2\n")
+	fmt.Printf("%s", utils.Banner())
+
 	fmt.Println("Tiddies makde it to the chat!")
 
 	// Set flag values based on input:
@@ -73,6 +96,12 @@ func main() {
 
 	// Now that we have a connection, read it/ write to it
 	fmt.Printf("the connection is : %v", asyncio_rocks)
+	/*
+		func readstream()
+			for())))))
+				data = connection.readstram
+
+	*/
 
 	/*
 		if -l is on,
