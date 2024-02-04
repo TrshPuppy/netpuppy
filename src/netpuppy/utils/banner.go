@@ -66,3 +66,24 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort s
 	selectionBanner = fmt.Sprintf("%v%v%v%v%v", s0, s1, s2, s3, s4)
 	return selectionBanner
 }
+
+//func worker(done chan bool) {
+//	fmt.Print("working...")
+//	time.Sleep(time.Second * 5)
+//	fmt.Println("done")
+//
+//	done <- true
+//	done <- true
+//	done <- true
+//	fmt.Println("after done")
+//}
+
+//func main() {
+//	done := make(chan bool, 1)
+//	done <- true
+//	go worker(done)
+//	//	<-done
+//	fmt.Printf("tiddies\n")
+//	time.Sleep(time.Second * 3)
+//	fmt.Printf("tiddies 2\n")
+//}

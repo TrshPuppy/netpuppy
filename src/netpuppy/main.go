@@ -1,36 +1,60 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
 
 	// NetPuppy modules:
 	"netpuppy/utils"
 )
 
-//func worker(done chan bool) {
-//	fmt.Print("working...")
-//	time.Sleep(time.Second * 5)
-//	fmt.Println("done")
-//
-//	done <- true
-//	done <- true
-//	done <- true
-//	fmt.Println("after done")
-//}
+func readUserInput(ioReader chan<- string) {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(">> ")
+	text, _ := reader.ReadString('\n')
 
-//func main() {
-//	done := make(chan bool, 1)
-//	done <- true
-//	go worker(done)
-//	//	<-done
-//	fmt.Printf("tiddies\n")
-//	time.Sleep(time.Second * 3)
-//	fmt.Printf("tiddies 2\n")
-//}
+	ioReader <- text
+}
+
+func writeToSocket(ioReader <-chan string, socketWriter chan<- bool, connection net.Conn) {
+	inputToSend := <-ioReader
+
+	_, err := connection.Write([]byte(inputToSend))
+	if err != nil {
+		socketWriter <- false
+		return
+	}
+	socketWriter <- true
+}
+
+func readFromSocket(socketReader chan<- []byte, connection net.Conn) {
+	// Read from connection socket:
+	dataBytes, err := bufio.NewReader(connection).ReadBytes('\n')
+	if err != nil {
+		fmt.Printf("Error reading from socket: %v\n", err)
+		return
+	}
+
+	socketReader <- dataBytes
+}
+
+func writeToStdout(ioWriter chan<- bool, socketReader <-chan []byte) {
+	//fmt.Printf("Socket writer started...\n")
+	bytesToWrite := <-socketReader
+
+	_, err := os.Stdout.Write(bytesToWrite)
+	if err != nil {
+		ioWriter <- false
+		return
+	}
+
+	ioWriter <- true
+}
 
 func main() {
 	// Set flag values based on input:
@@ -77,6 +101,8 @@ func main() {
 			os.Exit(1)
 		}
 
+		defer listener.Close() // Ensure the listener closes when main() returns
+
 		asyncio_rocks, err = listener.Accept()
 		if err != nil {
 			os.Stderr.WriteString(err.Error())
@@ -109,12 +135,46 @@ func main() {
 	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.connection_type, thisPeer.address, thisPeer.rPort, thisPeer.lPort)
 	fmt.Println(updateUserBanner)
 
-	/*
-		func readstream()
-			for())))))
-				data = connection.readstram
+	// Start channel to listen for SIGINT:
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+	go func() {
+		// If SIGINT: close connection, exit w/ code 2
+		for sig := range signalChan {
+			if sig.String() == "interrupt" {
+				fmt.Printf("signal: %v\n", sig)
+				thisPeer.connection.Close()
+				os.Exit(2)
+			}
+		}
+	}()
 
-	*/
+	for {
+		// IO read & socket write channels (user input will be written to socket)
+		ioReader := make(chan string)
+		socketWriter := make(chan bool)
+
+		go readUserInput(ioReader)
+		go writeToSocket(ioReader, socketWriter, thisPeer.connection)
+
+		// IO write & socket read channels (messages from socket will be printed to stdout)
+		ioWriter := make(chan bool)
+		socketReader := make(chan []byte)
+
+		go readFromSocket(socketReader, thisPeer.connection)
+		go writeToStdout(ioWriter, socketReader)
+
+		// Check for success writing to socket and stdout:
+		socketWriteSuccess := <-socketWriter
+		if !socketWriteSuccess {
+			fmt.Printf("Error writing to socket! \n")
+		}
+
+		stdOutWriteSuccess := <-ioWriter
+		if !stdOutWriteSuccess {
+			fmt.Printf("Error writing to stdout! \n")
+		}
+	}
 
 	/*
 		if -l is on,
