@@ -34,35 +34,33 @@ ________________________________________
 // Build a banner and return based on the type of peer the user started:
 func UserSelectionBanner(choice string, host string, port int) string {
 	var selectionBanner string
+	var s1 string
+	var s2 string
+	var s3 string
+	var s4 string
 
 	if choice == "connect_back" {
 		mode := "Client"
-		string1 := `
+		s1 = `
 	bork!
      __  /  	
 `
-		string2 := fmt.Sprintf("(___()'';      |Host: %v\n", host)
-		string3 := fmt.Sprintf("/ )   /'       |Port: %v\n", port)
-		string4 := fmt.Sprintf("/\\'--/\\        |Mode: %v\n", mode)
+		s2 = fmt.Sprintf("(___()'';      |Host: %v\n", host)
+		s3 = fmt.Sprintf("/ )   /'       |Port: %v\n", port)
+		s4 = fmt.Sprintf("/\\'--/\\        |Mode: %v\n", mode)
 
-		selectionBanner = fmt.Sprintf("%v%v%v%v", string1, string2, string3, string4)
 	} else {
 		mode := "Offensive Server"
-		s1 := `
+		s1 = `
    .-.  *sneef sneef*
   / (_
 `
-		s2 := fmt.Sprintf(" ( \"  6\\___o    |Host: %v\n", host)
-		s3 := fmt.Sprintf(" /  (  ___/     |Port: %v\n", port)
-		s4 := fmt.Sprintf("/     /  U      |Mode: %v\n", mode)
+		s2 = fmt.Sprintf(" ( \"  6\\___o    |Host: %v\n", host)
+		s3 = fmt.Sprintf(" /  (  ___/     |Port: %v\n", port)
+		s4 = fmt.Sprintf("/     /  U      |Mode: %v\n", mode)
 
-		selectionBanner = fmt.Sprintf("%v%v%v%v", s1, s2, s3, s4)
 	}
+
+	selectionBanner = fmt.Sprintf("%v%v%v%v", s1, s2, s3, s4)
 	return selectionBanner
 }
-
-// .-.  *sneef sneef*
-// / (_
-// ( "  6\\___o   |Host: {host}
-// /  (  ___/    |Port: {port}
-// /     /  U     |Mode: {mode}
