@@ -2,50 +2,67 @@ package utils
 
 import "fmt"
 
+// Build and return main banner:
 func Banner() string {
-	var bannerOpening string = `
-	Trash Puppy brings you...
-	
-	`
 
 	var openingBanner string = `
-|8PPPPe                  ___      .++.
-|8    |8 |eeee |eeeee __/_, '.  .'    '. .
-|8e   |8 |8      |8   \_,  | \_'  /   )'-')
-|88   |8 |8eee   |8e   U ) '-'    \  (('"'
-|88   |8 |88     |88   ___Y  ,    .'7 /| 
-|88   |8_|88ee___|88__(_,___/___.'_(_/_/_
+	Trash Puppy brings you...
 
+|8PPPPe
+|8    |8 |eeee |eeeee    ___      .++.
+|8e   |8 |8      |8   __/_, '.  .'    '. .
+|88   |8 |8eee   |8e  \_,  | \_'  /   )'-')
+|88   |8 |88     |88   U ) '-'    \  (('"'
+|88   |8 |88ee   |88   ___Y  ,    .'7 /|
+______________________(_,___/___.' (_/_/_
 |8PPPPe
 |8    |8 |e   .e |eeeee  |eeeee  |e   .e
 |8eeee8  |8   |8 |8   |8 |8   |8 |8   |8
 |88      |8e  |8 |8eee8  |8eee8  |8eee8
 |88      |88  |8 |88     |88      |88
-|88______|88ee8__|88_____|88______|88____
-
+|88      |88ee8  |88     |88      |88
+________________________________________
+	
+	  Launch a puppy to
+   	~ sneef  and  fetch ~
+	  data   for   you!
+	  
 	`
-
-	var bannerClosing string = `
-         Launch a puppy to
-       ~ sneef  and  fetch ~
-         data   for   you!
-		   `
-
-	return fmt.Sprintf("%v%v%v\n", bannerOpening, openingBanner, bannerClosing)
+	return openingBanner
 }
 
-func UserSelectionBanner(choice string, host string, portString string) string {
+// Build a banner and return based on the type of peer the user started:
+func UserSelectionBanner(choice string, host string, port int) string {
 	var selectionBanner string
 
 	if choice == "connect_back" {
-		mode := 
-		selectionBanner = `
-		bork!
-      __  /  
- (___()'';      |Host: {host}
- / )   /'       |Port: {port}
- /\'--/\        |Mode: {mode}
-    
-		`
+		mode := "Client"
+		string1 := `
+	bork!
+     __  /  	
+`
+		string2 := fmt.Sprintf("(___()'';      |Host: %v\n", host)
+		string3 := fmt.Sprintf("/ )   /'       |Port: %v\n", port)
+		string4 := fmt.Sprintf("/\\'--/\\        |Mode: %v\n", mode)
+
+		selectionBanner = fmt.Sprintf("%v%v%v%v", string1, string2, string3, string4)
+	} else {
+		mode := "Offensive Server"
+		s1 := `
+   .-.  *sneef sneef*
+  / (_
+`
+		s2 := fmt.Sprintf(" ( \"  6\\___o    |Host: %v\n", host)
+		s3 := fmt.Sprintf(" /  (  ___/     |Port: %v\n", port)
+		s4 := fmt.Sprintf("/     /  U      |Mode: %v\n", mode)
+
+		selectionBanner = fmt.Sprintf("%v%v%v%v", s1, s2, s3, s4)
 	}
+	return selectionBanner
 }
+
+// .-.  *sneef sneef*
+// / (_
+// ( "  6\\___o   |Host: {host}
+// /  (  ___/    |Port: {port}
+// /     /  U     |Mode: {mode}
