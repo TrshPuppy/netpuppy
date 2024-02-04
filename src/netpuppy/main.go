@@ -51,7 +51,7 @@ func main() {
 	// Initiate peer struct
 	thisPeer := peer{port: *turdnuggies, address: *hostFlag}
 
-	// If -l was given, create an offense peer:
+	// If -l was given, create an 'offense' peer:
 	if *listenFlag {
 		thisPeer.connection_type = "offense"
 		thisPeer.address = "0.0.0.0"
@@ -78,14 +78,23 @@ func main() {
 			//  log.Fatal(err1.Error()
 		}
 	} else {
-		// remoteHost := [2]string{thisPeer.address, thisPeer.port}
 		remoteHost := fmt.Sprintf("%v:%v", thisPeer.address, thisPeer.port)
 		asyncio_rocks, err = net.Dial("tcp", remoteHost)
+
+		// If there is an err, try the host address as ipv6 (need to add [] around string):
 		if err != nil {
-			os.Stderr.WriteString(err.Error())
-			os.Exit(1)
+			remoteHost := fmt.Sprintf("[%v]:%v", thisPeer.address, thisPeer.port)
+			asyncio_rocks, err = net.Dial("tcp", remoteHost)
+
+			if err != nil {
+				os.Stderr.WriteString(err.Error())
+				os.Exit(1)
+			}
 		}
 	}
+
+	// Attach connection to peer struct:
+	thisPeer.connection = asyncio_rocks
 
 	// Now that we have a connection, read it/ write to it
 	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.connection_type, thisPeer.address, thisPeer.port)
