@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	// NetPuppy modules:
 	"netpuppy/utils"
@@ -21,16 +22,17 @@ import (
 //	fmt.Println("after done")
 //}
 
-func main() {
-	//	done := make(chan bool, 1)
-	//	done <- true
-	//	go worker(done)
-	//	//	<-done
-	//	fmt.Printf("tiddies\n")
-	//	time.Sleep(time.Second * 3)
-	//	fmt.Printf("tiddies 2\n")
-	fmt.Printf("%s", utils.Banner())
+//func main() {
+//	done := make(chan bool, 1)
+//	done <- true
+//	go worker(done)
+//	//	<-done
+//	fmt.Printf("tiddies\n")
+//	time.Sleep(time.Second * 3)
+//	fmt.Printf("tiddies 2\n")
+//}
 
+func main() {
 	// Set flag values based on input:
 	listenFlag := flag.Bool("l", false, "put NetPuppy in listen mode")
 	hostFlag := flag.String("H", "0.0.0.0", "target host IP address to connect to")
@@ -40,16 +42,20 @@ func main() {
 	//                                            error?
 	flag.Parse()
 
+	// Print banner:
+	fmt.Printf("%s", utils.Banner())
+
 	// Depending on input, create this peer's type:
 	type peer struct {
 		connection_type string
-		port            int
+		rPort           int
+		lPort           string
 		address         string
 		connection      net.Conn
 	}
 
-	// Initiate peer struct
-	thisPeer := peer{port: *turdnuggies, address: *hostFlag}
+	// Initiate peer struct:
+	thisPeer := peer{rPort: *turdnuggies, address: *hostFlag}
 
 	// If -l was given, create an 'offense' peer:
 	if *listenFlag {
@@ -64,7 +70,7 @@ func main() {
 	var err error
 
 	if thisPeer.connection_type == "offense" {
-		listener, err1 := net.Listen("tcp", fmt.Sprintf(":%v", thisPeer.port))
+		listener, err1 := net.Listen("tcp", fmt.Sprintf(":%v", thisPeer.rPort))
 		if err1 != nil {
 			fmt.Printf("Error when creating listener: %v\n", err1)
 			os.Stderr.WriteString(err1.Error())
@@ -78,12 +84,12 @@ func main() {
 			//  log.Fatal(err1.Error()
 		}
 	} else {
-		remoteHost := fmt.Sprintf("%v:%v", thisPeer.address, thisPeer.port)
+		remoteHost := fmt.Sprintf("%v:%v", thisPeer.address, thisPeer.rPort)
 		asyncio_rocks, err = net.Dial("tcp", remoteHost)
 
 		// If there is an err, try the host address as ipv6 (need to add [] around string):
 		if err != nil {
-			remoteHost := fmt.Sprintf("[%v]:%v", thisPeer.address, thisPeer.port)
+			remoteHost := fmt.Sprintf("[%v]:%v", thisPeer.address, thisPeer.rPort)
 			asyncio_rocks, err = net.Dial("tcp", remoteHost)
 
 			if err != nil {
@@ -95,11 +101,14 @@ func main() {
 
 	// Attach connection to peer struct:
 	thisPeer.connection = asyncio_rocks
+	localPortArr := strings.Split(thisPeer.connection.LocalAddr().String(), ":")
+	localPort := localPortArr[len(localPortArr)-1]
+	thisPeer.lPort = localPort
 
-	// Now that we have a connection, read it/ write to it
-	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.connection_type, thisPeer.address, thisPeer.port)
+	// Update user:
+	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.connection_type, thisPeer.address, thisPeer.rPort, thisPeer.lPort)
 	fmt.Println(updateUserBanner)
-	fmt.Printf("Our connection is: %v", asyncio_rocks)
+
 	/*
 		func readstream()
 			for())))))
