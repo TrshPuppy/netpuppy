@@ -43,6 +43,6 @@ $ go run main.go -H 0:0:0:0:0:0:0:1 -p 44444
 ```
 ## This project is still being built & improved!
 ### Contributing:
-Just create a pull request and I (TrshPuppy) will review it.
+Just fork and create a pull request w/ a description of your changes. I (TrshPuppy) will review it! :)
 ### Python?
 This project was originally written in Python. If you'd like to fork the Python branch (which isn't being updated), you can check it out [here](https://github.com/TrshPuppy/NetPuppy/tree/python-version-abandoned)!
