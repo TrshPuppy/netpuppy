@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	// NetPuppy modules:
 	"netpuppy/utils"
@@ -15,32 +16,37 @@ import (
 
 func readUserInput(ioReader chan<- string) {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print(">> ")
-	text, _ := reader.ReadString('\n')
-
-	ioReader <- text
-}
-
-func writeToSocket(ioReader <-chan string, socketWriter chan<- bool, connection net.Conn) {
-	inputToSend := <-ioReader
-
-	_, err := connection.Write([]byte(inputToSend))
-	if err != nil {
-		socketWriter <- false
-		return
+	for {
+		fmt.Print(">> ")
+		text, _ := reader.ReadString('\n')
+		if len(text) > 0 {
+			ioReader <- text
+		}
 	}
-	socketWriter <- true
 }
+
+//func writeToSocket(ioReader <-chan string, socketWriter chan<- bool, connection net.Conn) {
+//	inputToSend := <-ioReader
+//
+//	_, err := connection.Write([]byte(inputToSend))
+//	if err != nil {
+//		socketWriter <- false
+//		return
+//	}
+//	socketWriter <- true
+//}
 
 func readFromSocket(socketReader chan<- []byte, connection net.Conn) {
 	// Read from connection socket:
-	dataBytes, err := bufio.NewReader(connection).ReadBytes('\n')
-	if err != nil {
-		fmt.Printf("Error reading from socket: %v\n", err)
-		return
-	}
 
-	socketReader <- dataBytes
+	for {
+		dataBytes, err := bufio.NewReader(connection).ReadBytes('\n')
+		if err != nil {
+			fmt.Printf("Error reading from socket: %v\n", err)
+			return
+		}
+		socketReader <- dataBytes
+	}
 }
 
 func writeToStdout(ioWriter chan<- bool, socketReader <-chan []byte) {
@@ -148,33 +154,55 @@ func main() {
 			}
 		}
 	}()
+	// IO read & socket write channels (user input will be written to socket)
+	ioReader := make(chan string)
+	//	socketWriter := make(chan bool)
+
+	// IO write & socket read channels (messages from socket will be printed to stdout)
+	//ioWriter := make(chan bool)
+	socketReader := make(chan []byte)
+
+	go readUserInput(ioReader)
+	//go writeToSocket(ioReader, socketWriter, thisPeer.connection)
+
+	go readFromSocket(socketReader, thisPeer.connection)
+	//	go writeToStdout(ioWriter, socketReader)
 
 	for {
-		// IO read & socket write channels (user input will be written to socket)
-		ioReader := make(chan string)
-		socketWriter := make(chan bool)
-
-		go readUserInput(ioReader)
-		go writeToSocket(ioReader, socketWriter, thisPeer.connection)
-
-		// IO write & socket read channels (messages from socket will be printed to stdout)
-		ioWriter := make(chan bool)
-		socketReader := make(chan []byte)
-
-		go readFromSocket(socketReader, thisPeer.connection)
-		go writeToStdout(ioWriter, socketReader)
-
-		// Check for success writing to socket and stdout:
-		socketWriteSuccess := <-socketWriter
-		if !socketWriteSuccess {
-			fmt.Printf("Error writing to socket! \n")
-		}
-
-		stdOutWriteSuccess := <-ioWriter
-		if !stdOutWriteSuccess {
-			fmt.Printf("Error writing to stdout! \n")
+		select {
+		case userInput := <-ioReader:
+			_, err := thisPeer.connection.Write([]byte(userInput))
+			if err != nil {
+				// Quit here?
+				fmt.Printf("Error in userInput select: %v\n", err)
+			}
+		case socketIncoming := <-socketReader:
+			_, err := os.Stdout.Write(socketIncoming)
+			if err != nil {
+				// Quit here?
+				fmt.Printf("Error in writing to stdout: %v\n", err)
+			}
+		default:
+			time.Sleep(300 * time.Millisecond)
+			//fmt.Printf("Default: slept for 300 ms\n")
 		}
 	}
+
+	//		select {
+	//
+	//		}
+
+	// Check for success writing to socket and stdout:
+	//	socketWriteSuccess := <-socketWriter
+	//	if !socketWriteSuccess {
+	//		fmt.Printf("Error writing to socket! \n")
+	//	}
+
+	//	stdOutWriteSuccess := <-ioWriter
+	//	if !stdOutWriteSuccess {
+	//		fmt.Printf("Error writing to stdout! \n")
+	//	}
+	//}
 
 	/*
 		if -l is on,
