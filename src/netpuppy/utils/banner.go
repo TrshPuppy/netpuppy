@@ -87,3 +87,12 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort s
 //	time.Sleep(time.Second * 3)
 //	fmt.Printf("tiddies 2\n")
 //}
+
+/* TO DO:
+- make channels non blocking of each other?
+	- move channel creation out of for loop?
+	- do the channels need to be destroyed?
+- fix prompt
+
+
+*/

