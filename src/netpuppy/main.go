@@ -52,10 +52,9 @@ func startHelperShell() (*exec.Cmd, error) { // @Trauma_X_Sella 'connection'
 		os.Stderr.WriteString(" " + err.Error() + "\n")
 		return nil, err
 	}
-
 	bCmd := exec.Command(bashPath)
-
 	var erR error = bCmd.Start()
+
 	return bCmd, erR
 }
 
