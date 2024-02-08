@@ -7,18 +7,23 @@ package main
 
 import (
 	"bufio"
-	"flag"
+	"strings"
+	"time"
+	//"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
-	"time"
 
 	// NetPuppy modules:
 	"netpuppy/utils"
 )
+
+func sum(a int, b int) int {
+	s := a + b
+	return s
+}
 
 func readUserInput(ioReader chan<- string) {
 	reader := bufio.NewReader(os.Stdin)
@@ -59,13 +64,13 @@ func startHelperShell() (*exec.Cmd, error) { // @Trauma_X_Sella 'connection'
 }
 
 func main() {
-	// Set flag values based on input:
-	listenFlag := flag.Bool("l", false, "put NetPuppy in listen mode")
-	hostFlag := flag.String("H", "0.0.0.0", "target host IP address to connect to")
-	turdnuggies := flag.Int("p", 40404, "target port") // portFlag @Trauma_x_Sella
+	s := sum(2, 3)
+	st := fmt.Sprintf("%v", s)
+	fmt.Printf("sum: %v\n", st)
 
-	// Parse command line arguments:
-	flag.Parse()
+	flagStruct := utils.GetFlags()
+
+	fmt.Printf("Flags = %v\n", flagStruct.Host)
 
 	// Print banner:
 	fmt.Printf("%s", utils.Banner())
@@ -197,6 +202,5 @@ func main() {
 			time.Sleep(300 * time.Millisecond)
 		}
 	}
-
-	return
+	eturn
 }
