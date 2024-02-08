@@ -10,5 +10,3 @@ func TestSum(t *testing.T) {
 		t.Errorf("got %v, wanted %v\n", got, want)
 	}
 }
-
-func test

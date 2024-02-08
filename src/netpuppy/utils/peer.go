@@ -15,13 +15,13 @@ type Peer struct {
 	CbShell        *exec.Cmd
 }
 
-func CreatePeer(port int, host string, listen bool) Peer {
+func CreatePeer(port int, address string, listen bool) Peer {
 	var thisPeer Peer
 
 	if listen {
 		thisPeer = getOffense(port)
 	} else {
-		thisPeer = getConnectBack(port, host)
+		thisPeer = getConnectBack(port, address)
 	}
 	return thisPeer
 }
@@ -31,7 +31,7 @@ func getOffense(port int) Peer {
 	return offensePeer
 }
 
-func getConnectBack(port int, host string) Peer {
-	connectBackPeer := Peer{RPort: port, Address: host, ConnectionType: "connect_back"}
+func getConnectBack(port int, address string) Peer {
+	connectBackPeer := Peer{RPort: port, Address: address, ConnectionType: "connect_back"}
 	return connectBackPeer
 }
