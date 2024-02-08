@@ -85,40 +85,7 @@ func main() {
 	thisPeer := utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen)
 
 	// Now that we have our peer: try to make connection
-	var asyncio_rocks net.Conn // connection @0xtib3rius
-	var err error
-
-	if thisPeer.ConnectionType == "offense" {
-		listener, err1 := net.Listen("tcp", fmt.Sprintf(":%v", thisPeer.RPort))
-		if err1 != nil {
-			fmt.Printf("Error when creating listener: %v\n", err1)
-			os.Stderr.WriteString(" " + err.Error() + "\n")
-			os.Exit(1)
-		}
-
-		defer listener.Close() // Ensure the listener closes when main() returns
-
-		asyncio_rocks, err = listener.Accept()
-		if err != nil {
-			os.Stderr.WriteString(" " + err.Error() + "\n")
-			os.Exit(1)
-			//  log.Fatal(err1.Error()
-		}
-	} else {
-		remoteHost := fmt.Sprintf("%v:%v", thisPeer.Address, thisPeer.RPort)
-		asyncio_rocks, err = net.Dial("tcp", remoteHost)
-
-		// If there is an err, try the host address as ipv6 (need to add [] around string):
-		if err != nil {
-			remoteHost := fmt.Sprintf("[%v]:%v", thisPeer.Address, thisPeer.RPort)
-			asyncio_rocks, err = net.Dial("tcp", remoteHost)
-
-			if err != nil {
-				os.Stderr.WriteString(" " + err.Error() + "\n")
-				os.Exit(1)
-			}
-		}
-	}
+	asyncio_rocks := utils.GetConnection(thisPeer.ConnectionType, thisPeer.RPort, thisPeer.Address) // @0xTib3rius 'connection'
 
 	// Attach connection to peer struct:
 	thisPeer.Connection = asyncio_rocks
