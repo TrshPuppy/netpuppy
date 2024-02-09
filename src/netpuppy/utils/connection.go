@@ -6,6 +6,55 @@ import (
 	"os"
 )
 
+type Socket interface { // dummy net.Conn
+	Read() (int, error)
+	Write() (int, error)
+}
+
+type ConnectionGetter interface {
+	GetConnectionFromListener(int, string) Socket
+	GetConnectionFromClient(int, string) Socket
+}
+
+// FAKE
+type FakeConnectionGetter struct {
+}
+
+func (c FakeConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
+	clientConnection := ImaginaryConnection{Port: rPort, Address: address}
+	return clientConnection
+}
+
+func (c FakeConnectionGetter) GetConnectionFromListener(rPort int, address string) Socket {
+	listenerConnection := ImaginaryConnection{Port: rPort, Address: address}
+	return listenerConnection
+}
+
+type ImaginaryConnection struct {
+	Port    int
+	Address string
+}
+
+func (i ImaginaryConnection) Read() (int, error) {
+	return 69, nil
+}
+
+func (i ImaginaryConnection) Write() (int, error) {
+
+	return 22, nil
+}
+
+func (i ImaginaryConnection) Listen() (string, string) {
+
+	return "string1", "string2"
+}
+
+func (i ImaginaryConnection) Accept() (string, error) {
+
+	return "string from accept", nil
+}
+
+// REAL
 func GetConnection(cType string, rPort int, address string) net.Conn {
 	var connection net.Conn
 	var err error

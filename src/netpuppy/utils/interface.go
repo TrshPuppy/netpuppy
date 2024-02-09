@@ -4,7 +4,7 @@ import "fmt"
 
 type dummyInterface interface {
 	contact() string
-	pickupLine() string
+	//pickupLine() string
 }
 
 type DummyStruct struct {
