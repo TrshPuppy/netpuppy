@@ -12,26 +12,27 @@ type Peer struct {
 	LPort          string
 	Address        string
 	Connection     net.Conn
-	CbShell        *exec.Cmd
+	Shell          bool
+	ShellProcess   *exec.Cmd
 }
 
-func CreatePeer(port int, address string, listen bool) Peer {
+func CreatePeer(port int, address string, listen bool, shell bool) Peer {
 	var thisPeer Peer
 
 	if listen {
-		thisPeer = getOffense(port)
+		thisPeer = getOffense(port, shell)
 	} else {
-		thisPeer = getConnectBack(port, address)
+		thisPeer = getConnectBack(port, address, shell)
 	}
 	return thisPeer
 }
 
-func getOffense(port int) Peer {
-	offensePeer := Peer{RPort: port, Address: "0.0.0.0", ConnectionType: "offense"}
+func getOffense(port int, shell bool) Peer {
+	offensePeer := Peer{RPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
 	return offensePeer
 }
 
-func getConnectBack(port int, address string) Peer {
-	connectBackPeer := Peer{RPort: port, Address: address, ConnectionType: "connect_back"}
+func getConnectBack(port int, address string, shell bool) Peer {
+	connectBackPeer := Peer{RPort: port, Address: address, ConnectionType: "connect_back", Shell: shell}
 	return connectBackPeer
 }
