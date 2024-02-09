@@ -44,12 +44,17 @@ func createListenerConnection(rPort int) (net.Conn, error) {
 }
 
 func createClientConnection(address string, rPort int) (net.Conn, error) {
-	var connection net.Conn
+	var yuleLog net.Conn // @Trauma_X_Sella 'connection'
 	var err error
 
 	remoteHost := fmt.Sprintf("%v:%v", address, rPort)
-	connection, err = net.Dial("tcp", remoteHost)
+	yuleLog, err = net.Dial("tcp", remoteHost)
 
 	// If there is an err, try the host address as ipv6 (need to add [] around string):
-	return connection, err
+	return yuleLog, err
 }
+
+/*
+
+search for word with /foobar, hit enter go back to normal mode, type cgn to replace next search match, then you can hit n to find the next instance and hit . to replace the next instance or hit n to go to the next
+*/
