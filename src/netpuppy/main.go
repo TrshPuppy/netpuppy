@@ -8,12 +8,13 @@ package main
 import (
 	"bufio"
 	"netpuppy/utils"
+	"time"
 
 	//"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	// NetPuppy modules:
 )
 
@@ -33,10 +34,11 @@ func readUserInput(ioReader chan<- string) {
 	}
 }
 
-func readFromSocket(socketReader chan<- []byte, connection net.Conn) {
+func readFromSocket(socketReader chan<- []byte, connection utils.Socket) {
 	// Read from connection socket:
 	for {
-		dataBytes, err := bufio.NewReader(connection).ReadBytes('\n')
+		// dataBytes, err := bufio.NewReader(connection).ReadBytes('\n')
+		dataBytes, err := connection.Read()
 		if err != nil {
 			fmt.Printf("Error reading from socket: %v\n", err)
 			os.Stderr.WriteString(err.Error())
@@ -61,22 +63,87 @@ func startHelperShell() (*exec.Cmd, error) { // @Trauma_X_Sella 'connection'
 }
 
 func runApp(c utils.ConnectionGetter) {
+	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
-	var socket utils.Socket
 
+	// Print banner:
+	fmt.Printf("%s", utils.Banner())
+
+	// Create peer instance based on user input:
+	var socket utils.Socket
 	thisPeer := utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
 
+	// Make connection:
 	if thisPeer.ConnectionType == "offense" {
 		socket = c.GetConnectionFromListener(thisPeer.RPort, thisPeer.Address)
 	} else {
 		socket = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address)
 	}
-	fmt.Printf("Socket: %v\n", socket)
+
+	// Connect socket connection to peer
+	thisPeer.Connection = socket
+
+	// Update user:
+	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
+	fmt.Println(updateUserBanner)
+
+	// Start SIGINT go routine:
+	// Start channel to listen for SIGINT:
+	listenForSIGINT(thisPeer)
+
+	// Start go routines and channels to read socket and user input:
+	// IO read & socket write channels (user input will be written to socket)
+	ioReader := make(chan string)
+
+	// IO write & socket read channels (messages from socket will be printed to stdout)
+	socketReader := make(chan []byte)
+
+	go readUserInput(ioReader)
+	go readFromSocket(socketReader, thisPeer.Connection)
+
+	for {
+		select {
+		case userInput := <-ioReader:
+			_, err := thisPeer.Connection.Write([]byte(userInput))
+
+			if err != nil {
+				// Quit here?
+				fmt.Printf("Error in userInput select: %v\n", err)
+				os.Stderr.WriteString(" " + err.Error() + "\n")
+			}
+		case socketIncoming := <-socketReader:
+			_, err := os.Stdout.Write(socketIncoming)
+			if err != nil {
+				// Quit here?
+				fmt.Printf("Error in writing to stdout: %v\n", err)
+				os.Stderr.WriteString(" " + err.Error() + "\n")
+			}
+		default:
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+}
+
+func listenForSIGINT(thisPeer utils.Peer) {
+	// If SIGINT: close connection, exit w/ code 2
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+
+	go func() {
+		for sig := range signalChan {
+			if sig.String() == "interrupt" {
+				fmt.Printf("signal: %v\n", sig)
+				thisPeer.Connection.Close()
+				os.Exit(2)
+			}
+		}
+	}()
 }
 
 func main() {
-	var fakeConnection utils.FakeConnectionGetter
-	runApp(fakeConnection)
+	//var fakeConnection utils.FakeConnectionGetter
+	var realConnection utils.RealConnectionGetter
+	runApp(realConnection)
 	// s := sum(2, 3)
 	// st := fmt.Sprintf("%v", s)
 	// fmt.Printf("sum: %v\n", st)

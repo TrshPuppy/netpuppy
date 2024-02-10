@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"net"
 	"os/exec"
 )
 
@@ -11,7 +10,7 @@ type Peer struct {
 	RPort          int
 	LPort          string
 	Address        string
-	Connection     net.Conn
+	Connection     Socket
 	Shell          bool
 	ShellProcess   *exec.Cmd
 }
