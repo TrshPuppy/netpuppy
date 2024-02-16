@@ -47,3 +47,23 @@ func TestGetConnectionFromListener(t *testing.T) {
 		t.Errorf("Test Listener Socket Address = Got: %v, Expected: %v\n", testListenerSocket.Address, address)
 	}
 }
+
+func testSocketRead(t *testing.T) {
+	var byteArr []byte
+	var err error
+
+	var fakeSocket TestSocket
+
+	readReturn, readErr := fakeSocket.Read()
+	// NOTE:: Need to do type assertions again? Read() returns empty types
+	testReadReturn, success := readReturn.([]byte)
+	if !success {
+		t.Errorf("Test Read readReturn - Got: %v, Expected: []byte", testReadReturn)
+	}
+
+	testReadErr, errSuccess := readErr.(error)
+	if !errSuccess {
+		t.Errorf("Test Read errorReturn - Got: %v, Expected: error", testReadErr)
+	}
+
+}
