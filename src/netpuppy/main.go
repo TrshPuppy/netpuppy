@@ -69,7 +69,7 @@ func runApp(c utils.ConnectionGetter) {
 
 	// Make connection:
 	if thisPeer.ConnectionType == "offense" {
-		socket = c.GetConnectionFromListener(thisPeer.RPort, thisPeer.Address)
+		socket = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
 	} else {
 		socket = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address)
 	}

@@ -32,7 +32,7 @@ ________________________________________
 }
 
 // Build a banner and return based on the type of peer the user started:
-func UserSelectionBanner(choice string, host string, remotePort int, localPort string) string {
+func UserSelectionBanner(choice string, host string, remotePort int, localPort int) string {
 	var selectionBanner string
 	var s0 string
 	var s1 string
