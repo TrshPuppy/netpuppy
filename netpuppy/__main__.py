@@ -19,7 +19,7 @@ def network_port(value: str) -> int:
     return ivalue
 
 
-async def main() -> None:
+def main() -> None:
     # Make the CLI arg parser:
     parser = argparse.ArgumentParser(
         prog="netpuppy",  # ./netpuppy
@@ -136,15 +136,26 @@ async def main() -> None:
 
         try:
             while connection:
+                current_connection.read_stream()
+                current_connection.write_stream()
                 # asyncio.eventloop
-                gather = await asyncio.gather(
-                    current_connection.read_stream(), current_connection.write_stream()
-                )
+                # gather = await asyncio.gather(
+                #     current_connection.read_stream(), current_connection.write_stream()
+                # )
 
-                asyncio.run(gather)
+                # asyncio.run(gather)
 
-                # await current_connection.read_stream()
-                # await current_connection.write_stream()
+                # read_task = current_connection.read_stream()
+                # write_task = current_connection.write_stream()
+                # pending = [read_task, write_task]
+
+                # while pending:
+                #     done, pending = await asyncio.wait(
+                #         pending, return_when=asyncio.FIRST_COMPLETED
+                #     )
+
+                #     for task in done:
+                #         print(f"done: {task}")
 
                 # print(f"in main: {current_connection.sub_proc.stdout.read()}")
 
@@ -166,11 +177,11 @@ async def main() -> None:
         sys.exit(1)
 
 
-def lil_wayne():
-    asyncio.run(main())
+# def lil_wayne():
+#     asyncio.run(main())
 
 
-lil_wayne()
+# lil_wayne()
 
 # SUDO CODE: (what OS)
 # nmap fingerprint
