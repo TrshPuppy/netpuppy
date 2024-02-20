@@ -8,7 +8,7 @@ import (
 type Peer struct {
 	ConnectionType string
 	RPort          int
-	LPort          string
+	LPort          int
 	Address        string
 	Connection     Socket
 	Shell          bool
@@ -27,7 +27,9 @@ func CreatePeer(port int, address string, listen bool, shell bool) Peer {
 }
 
 func getOffense(port int, shell bool) Peer {
-	offensePeer := Peer{RPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
+
+	// localPort := fmt.Sprintf("%v", port)
+	offensePeer := Peer{LPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
 	return offensePeer
 }
 

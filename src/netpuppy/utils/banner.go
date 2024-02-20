@@ -32,7 +32,7 @@ ________________________________________
 }
 
 // Build a banner and return based on the type of peer the user started:
-func UserSelectionBanner(choice string, host string, remotePort int, localPort string) string {
+func UserSelectionBanner(choice string, host string, remotePort int, localPort int) string {
 	var selectionBanner string
 	var s0 string
 	var s1 string
@@ -41,31 +41,46 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort s
 	var s4 string
 
 	if choice == "connect_back" {
-		mode := "Client"
+		mode := "Connect Back"
 		s0 = `
 	bork!
 `
-		s1 = fmt.Sprintf("     __  /     |Host:  %v\n", host)
-		s2 = fmt.Sprintf("(___()'';      |RPort: %v\n", remotePort)
-		s3 = fmt.Sprintf("/ )   /'       |LPort: %v\n", localPort)
-		s4 = fmt.Sprintf("/\\'--/\\        |Mode:  %v\n", mode)
-
+		s1 = fmt.Sprintf("     __  /\n")
+		s2 = fmt.Sprintf("(___()'';    |Mode:  %v\n", mode)
+		s3 = fmt.Sprintf("/ )   /'     |Host:  %v\n", host)
+		s4 = fmt.Sprintf("/\\'--/\\      |RPort: %v", remotePort)
 	} else {
 		mode := "Offensive Server"
 		s0 = `
     *sneef sneef*
    .-.
 `
-		s1 = fmt.Sprintf("  / (_          |Host:  %v\n", host)
-		s2 = fmt.Sprintf(" ( \"  6\\___o    |RPort: %v\n", remotePort)
-		s3 = fmt.Sprintf(" /  (  ___/     |LPort: %v\n", localPort)
-		s4 = fmt.Sprintf("/     /  U      |Mode:  %v\n", mode)
-
+		s1 = fmt.Sprintf("  / (_\n")
+		s2 = fmt.Sprintf(" ( \"  6\\___o   |Mode:  %v\n", mode)
+		s3 = fmt.Sprintf(" /  (  ___/    |Host:  %v\n", host)
+		s4 = fmt.Sprintf("/     /  U     |LPort: %v", localPort)
 	}
 
 	selectionBanner = fmt.Sprintf("%v%v%v%v%v", s0, s1, s2, s3, s4)
 	return selectionBanner
 }
+
+// func PrintMissingPortToBanner(peerType string, connection Socket) string {
+// 	var missingBannerPiece string
+
+// 	// If the current peer is the client, we need to add the local port to banner:
+// 	if peerType == "connect_back" {
+// 		missingBannerPiece = fmt.Sprintf("             |LPort: %v\n", LPort)
+// 	} else { // If the current peer is the server, we need to add the remote port to banner:
+// 		missingBannerPiece = fmt.Sprintf("               |RPort: %v\n", RPort)
+
+// 		// Update port on struct:
+// 		// var remoteAddress = fmt.Sprintf("%v", connection.RemoteAddr())
+// 		// var remotePort = strings.Split(remoteAddress, ":")[1]
+// 	}
+
+// 	return missingBannerPiece
+// }
 
 //func worker(done chan bool) {
 //	fmt.Print("working...")
