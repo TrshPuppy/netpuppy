@@ -67,6 +67,10 @@ func runApp(c utils.ConnectionGetter) {
 	var socket utils.Socket
 	thisPeer := utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
 
+	// Update user:
+	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
+	fmt.Println(updateUserBanner)
+
 	// Make connection:
 	if thisPeer.ConnectionType == "offense" {
 		socket = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
@@ -77,9 +81,9 @@ func runApp(c utils.ConnectionGetter) {
 	// Connect socket connection to peer
 	thisPeer.Connection = socket
 
-	// Update user:
-	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
-	fmt.Println(updateUserBanner)
+	// Update banner w/ missing port:
+	var missingPortInBanner = utils.PrintMissingPortToBanner(thisPeer.ConnectionType, thisPeer.LPort, thisPeer.RPort)
+	fmt.Println(missingPortInBanner)
 
 	// Start SIGINT go routine:
 	// Start channel to listen for SIGINT:

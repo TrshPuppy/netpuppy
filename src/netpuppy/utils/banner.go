@@ -45,26 +45,37 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort i
 		s0 = `
 	bork!
 `
-		s1 = fmt.Sprintf("     __  /     |Mode:  %v\n", mode)
-		s2 = fmt.Sprintf("(___()'';      |Host:  %v\n", host)
-		s3 = fmt.Sprintf("/ )   /'       |RPort: %v\n", remotePort)
-		s4 = fmt.Sprintf("/\\'--/\\        |LPort: %v\n", localPort)
-
+		s1 = fmt.Sprintf("     __  /\n")
+		s2 = fmt.Sprintf("(___()'';    |Mode:  %v\n", mode)
+		s3 = fmt.Sprintf("/ )   /'     |Host:  %v\n", host)
+		s4 = fmt.Sprintf("/\\'--/\\      |RPort: %v", remotePort)
 	} else {
 		mode := "Offensive Server"
 		s0 = `
     *sneef sneef*
    .-.
 `
-		s1 = fmt.Sprintf("  / (_          |Mode:  %v\n", mode)
-		s2 = fmt.Sprintf(" ( \"  6\\___o    |Host:  %v\n", host)
-		s3 = fmt.Sprintf(" /  (  ___/     |LPort: %v\n", localPort)
-		s4 = fmt.Sprintf("/     /  U      |RPort: %v\n", remotePort)
-
+		s1 = fmt.Sprintf("  / (_\n")
+		s2 = fmt.Sprintf(" ( \"  6\\___o   |Mode:  %v\n", mode)
+		s3 = fmt.Sprintf(" /  (  ___/    |Host:  %v\n", host)
+		s4 = fmt.Sprintf("/     /  U     |LPort: %v", localPort)
 	}
 
 	selectionBanner = fmt.Sprintf("%v%v%v%v%v", s0, s1, s2, s3, s4)
 	return selectionBanner
+}
+
+func PrintMissingPortToBanner(peerType string, LPort int, RPort int) string {
+	var missingBannerPiece string
+
+	// If the current peer is the client, we need to add the local port to banner:
+	if peerType == "connect_back" {
+		missingBannerPiece = fmt.Sprintf("             |LPort: %v\n", LPort)
+	} else { // If the current peer is the server, we need to add the remote port to banner:
+		missingBannerPiece = fmt.Sprintf("               |RPort: %v\n", RPort)
+	}
+
+	return missingBannerPiece
 }
 
 //func worker(done chan bool) {
