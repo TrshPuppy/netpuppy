@@ -41,14 +41,14 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort i
 	var s4 string
 
 	if choice == "connect_back" {
-		mode := "Client"
+		mode := "Connect Back"
 		s0 = `
 	bork!
 `
-		s1 = fmt.Sprintf("     __  /     |Host:  %v\n", host)
-		s2 = fmt.Sprintf("(___()'';      |RPort: %v\n", remotePort)
-		s3 = fmt.Sprintf("/ )   /'       |LPort: %v\n", localPort)
-		s4 = fmt.Sprintf("/\\'--/\\        |Mode:  %v\n", mode)
+		s1 = fmt.Sprintf("     __  /     |Mode:  %v\n", mode)
+		s2 = fmt.Sprintf("(___()'';      |Host:  %v\n", host)
+		s3 = fmt.Sprintf("/ )   /'       |RPort: %v\n", remotePort)
+		s4 = fmt.Sprintf("/\\'--/\\        |LPort: %v\n", localPort)
 
 	} else {
 		mode := "Offensive Server"
@@ -56,10 +56,10 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort i
     *sneef sneef*
    .-.
 `
-		s1 = fmt.Sprintf("  / (_          |Host:  %v\n", host)
-		s2 = fmt.Sprintf(" ( \"  6\\___o    |RPort: %v\n", remotePort)
+		s1 = fmt.Sprintf("  / (_          |Mode:  %v\n", mode)
+		s2 = fmt.Sprintf(" ( \"  6\\___o    |Host:  %v\n", host)
 		s3 = fmt.Sprintf(" /  (  ___/     |LPort: %v\n", localPort)
-		s4 = fmt.Sprintf("/     /  U      |Mode:  %v\n", mode)
+		s4 = fmt.Sprintf("/     /  U      |RPort: %v\n", remotePort)
 
 	}
 
