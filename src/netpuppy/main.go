@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"time"
 
@@ -43,19 +42,6 @@ func readFromSocket(socketReader chan<- []byte, connection utils.Socket) {
 	}
 }
 
-func startHelperShell() (*exec.Cmd, error) {
-	bashPath, err := exec.LookPath(`/bin/bash`)
-	if err != nil {
-		fmt.Printf("Error finding bash path: %v\n", err)
-		os.Stderr.WriteString(" " + err.Error() + "\n")
-		return nil, err
-	}
-	bCmd := exec.Command(bashPath)
-	var erR error = bCmd.Start()
-
-	return bCmd, erR
-}
-
 func runApp(c utils.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
@@ -80,6 +66,15 @@ func runApp(c utils.ConnectionGetter) {
 
 	// Connect socket connection to peer
 	thisPeer.Connection = socket
+
+	// If shell flag is true: start shell:
+	if thisPeer.Shell {
+		var err error = utils.StartHelperShell(thisPeer)
+		if err != nil {
+			fmt.Printf("Error finding bash path: %v\n", err)
+			os.Stderr.WriteString(" " + err.Error() + "\n")
+		}
+	}
 
 	// Update banner w/ missing port:
 	// var missingPortInBanner = utils.PrintMissingPortToBanner(thisPeer.ConnectionType, thisPeer.Connection)
