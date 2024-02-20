@@ -65,18 +65,22 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort i
 	return selectionBanner
 }
 
-func PrintMissingPortToBanner(peerType string, LPort int, RPort int) string {
-	var missingBannerPiece string
+// func PrintMissingPortToBanner(peerType string, connection Socket) string {
+// 	var missingBannerPiece string
 
-	// If the current peer is the client, we need to add the local port to banner:
-	if peerType == "connect_back" {
-		missingBannerPiece = fmt.Sprintf("             |LPort: %v\n", LPort)
-	} else { // If the current peer is the server, we need to add the remote port to banner:
-		missingBannerPiece = fmt.Sprintf("               |RPort: %v\n", RPort)
-	}
+// 	// If the current peer is the client, we need to add the local port to banner:
+// 	if peerType == "connect_back" {
+// 		missingBannerPiece = fmt.Sprintf("             |LPort: %v\n", LPort)
+// 	} else { // If the current peer is the server, we need to add the remote port to banner:
+// 		missingBannerPiece = fmt.Sprintf("               |RPort: %v\n", RPort)
 
-	return missingBannerPiece
-}
+// 		// Update port on struct:
+// 		// var remoteAddress = fmt.Sprintf("%v", connection.RemoteAddr())
+// 		// var remotePort = strings.Split(remoteAddress, ":")[1]
+// 	}
+
+// 	return missingBannerPiece
+// }
 
 //func worker(done chan bool) {
 //	fmt.Print("working...")

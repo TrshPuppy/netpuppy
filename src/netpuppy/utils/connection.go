@@ -53,6 +53,9 @@ type Socket interface {
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
 	Close() error
+	// RemoteAddr() Addr
+	//                                     TP U ARE HERE:
+	// add RemoteAddr() and LocalAddr()? (so we can update the user w/ the actual port numbers)
 }
 
 type ConnectionGetter interface {
@@ -71,6 +74,11 @@ type TestConnectionGetter struct {
 	// Leave empty
 }
 
+type Addr interface {
+	TestNetWork() string
+	TestNetWorkString() string
+}
+
 func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
 	testClientConnection := TestSocket{Port: rPort, Address: address}
 	return testClientConnection
@@ -82,7 +90,7 @@ func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address strin
 }
 
 func (i TestSocket) Read() ([]byte, error) {
-	var testByteArr []byte
+	testByteArr := []byte("tiddies")
 	var testErr error
 
 	return testByteArr, testErr
@@ -98,6 +106,8 @@ func (i TestSocket) Close() error {
 	var testCloseErr error
 	return testCloseErr
 }
+
+// func (i TestSocket) RemoteAddr
 
 // REAL code:
 type RealSocket struct { // This is the only code which holds the ACTUAL net connection:
@@ -157,11 +167,11 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string)
 func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) Socket {
 	var listenerConnection net.Conn
 	var err error
-	var remotePort string = fmt.Sprintf(":%v", rPort)
+	var localPort string = fmt.Sprintf(":%v", rPort)
 	var listenerSocket RealSocket
 
 	// Listener created first:
-	listener, err1 := net.Listen("tcp", remotePort)
+	listener, err1 := net.Listen("tcp", localPort)
 	if err1 != nil {
 		fmt.Printf("Error when creating listener connection: %v\n", err1)
 		os.Stderr.WriteString(" " + err1.Error() + "\n")

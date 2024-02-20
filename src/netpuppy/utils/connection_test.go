@@ -1,6 +1,9 @@
 package utils
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestGetConnectionFromClient(t *testing.T) {
 	// Arrange
@@ -49,21 +52,18 @@ func TestGetConnectionFromListener(t *testing.T) {
 }
 
 func testSocketRead(t *testing.T) {
-	var byteArr []byte
-	var err error
+	testReadByteArr := []byte("tiddies")
+	var testReadErr error
 
 	var fakeSocket TestSocket
 
 	readReturn, readErr := fakeSocket.Read()
-	// NOTE:: Need to do type assertions again? Read() returns empty types
-	testReadReturn, success := readReturn.([]byte)
-	if !success {
-		t.Errorf("Test Read readReturn - Got: %v, Expected: []byte", testReadReturn)
+	if readErr != testReadErr {
+		t.Errorf("Test Error readErr - Got: %v, Expected: error\n", readErr)
 	}
 
-	testReadErr, errSuccess := readErr.(error)
-	if !errSuccess {
-		t.Errorf("Test Read errorReturn - Got: %v, Expected: error", testReadErr)
+	if !slices.Equal(readReturn, testReadByteArr) {
+		t.Errorf("Test Read readReturn - Got: %v, Expected: []byte\n", readReturn)
 	}
 
 }

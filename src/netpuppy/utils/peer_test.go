@@ -17,7 +17,7 @@ func TestCreateConnectBackPeer(t *testing.T) {
 
 	// Assert
 	if got.RPort != dummyPort {
-		t.Errorf("CBPeer.RPort - Got: %v, Expected: %v\n", got.LPort, dummyPort)
+		t.Errorf("CBPeer.RPort - Got: %v, Expected: %v\n", got.RPort, dummyPort)
 	}
 
 	if got.Address != dummyAddress {
@@ -45,8 +45,8 @@ func TestCreateOffensePeer(t *testing.T) {
 	got := CreatePeer(dummyPort, dummyAddress, dummyListen, dummyShell)
 
 	// Assert
-	if got.RPort != dummyPort {
-		t.Errorf("OffensePeer.RPort - Got: %v, Expected: %v\n", got.LPort, dummyPort)
+	if got.LPort != dummyPort {
+		t.Errorf("OffensePeer.LPort - Got: %v, Expected: %v\n", got.LPort, dummyPort)
 	}
 
 	if got.Address != dummyAddress {

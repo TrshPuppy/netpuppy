@@ -82,8 +82,8 @@ func runApp(c utils.ConnectionGetter) {
 	thisPeer.Connection = socket
 
 	// Update banner w/ missing port:
-	var missingPortInBanner = utils.PrintMissingPortToBanner(thisPeer.ConnectionType, thisPeer.LPort, thisPeer.RPort)
-	fmt.Println(missingPortInBanner)
+	// var missingPortInBanner = utils.PrintMissingPortToBanner(thisPeer.ConnectionType, thisPeer.Connection)
+	// fmt.Println(missingPortInBanner)
 
 	// Start SIGINT go routine:
 	// Start channel to listen for SIGINT:
