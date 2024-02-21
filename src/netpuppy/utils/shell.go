@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"os/exec"
 )
 
@@ -16,15 +17,32 @@ func StartHelperShell(thisPeer *Peer) error {
 			return err
 		}
 		bCmd := exec.Command(bashCopPath)
+		bashIn, eRr := bCmd.StdinPipe()
+		if eRr != nil {
+			return eRr
+		}
 
 		// If bash exists, attach the exec.Cmd struct to the peer:
 		thisPeer.ShellProcess = *bCmd
 
-		// Start the shell:
-		var erR error = thisPeer.ShellProcess.Start()
-		if erR != nil {
-			return erR
+		//	// Start the shell:
+		//	var erR error = thisPeer.ShellProcess.Start()
+		//	if erR != nil {
+		//		return erR
+		//	}
+
+		// Test pipe into stdin
+		go func() {
+			defer bashIn.Close()
+			io.WriteString(bashIn, "/usr/bin/date")
+		}()
+
+		out, eRR := bCmd.CombinedOutput()
+		if eRR != nil {
+			return eRR
 		}
+
+		fmt.Printf("output: %v\n", string(out))
 	}
 
 	fmt.Printf("Shell mod: process field: %v\n", thisPeer.ShellProcess.Process)
