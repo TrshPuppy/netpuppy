@@ -74,10 +74,10 @@ type TestConnectionGetter struct {
 	// Leave empty
 }
 
-type Addr interface {
-	TestNetWork() string
-	TestNetWorkString() string
-}
+// type Addr interface {
+// 	TestNetWork() string
+// 	TestNetWorkString() string
+// }
 
 func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
 	testClientConnection := TestSocket{Port: rPort, Address: address}
@@ -106,8 +106,6 @@ func (i TestSocket) Close() error {
 	var testCloseErr error
 	return testCloseErr
 }
-
-// func (i TestSocket) RemoteAddr
 
 // REAL code:
 type RealSocket struct { // This is the only code which holds the ACTUAL net connection:

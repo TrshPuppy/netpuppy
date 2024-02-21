@@ -8,6 +8,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"time"
@@ -68,14 +69,39 @@ func runApp(c utils.ConnectionGetter) {
 	thisPeer.Connection = socket
 
 	// If shell flag is true: start shell:
+	var realShellGetter utils.RealShellGetter
+	var shell utils.BashShell
 	fmt.Printf("This peer shell: %v\n", thisPeer.Shell)
 	if thisPeer.Shell {
-		var err error = utils.StartHelperShell(thisPeer)
-		if err != nil {
-			fmt.Printf("Error finding bash path: %v\n", err)
-			os.Stderr.WriteString(" " + err.Error() + "\n")
-		}
+		shell = realShellGetter.GetConnectBackInitiatedShell(thisPeer)
+		// shell = utils.StartAndReturnHelperShell(thisPeer)
 	}
+
+	// Connect shell to peer:
+	thisPeer.ShellProcess = shell
+
+	// test start shell:
+	err := shell.Start()
+	if err != nil {
+		fmt.Printf("err: %v\n", err)
+	}
+
+	// Test pipe into stdin
+	bashIn, _ := shell.StdinPipe()
+	go func() {
+		//defer bashIn.Close()
+		io.WriteString(bashIn, "/usr/bin/date")
+	}()
+
+	out, eRR := shell.StdoutPipe()
+	if eRR != nil {
+		fmt.Printf("Error Getting shell combined output: %v\n", eRR)
+		os.Stderr.WriteString(" " + eRR.Error() + "\n")
+		os.Exit(1)
+	}
+	fmt.Printf("Test stdout: %v\n", *out)
+
+	fmt.Printf("main shell: %v\n", shell)
 
 	// test shell
 	//fmt.Printf("Shell string: %v\n", thisPeer.ShellProcess.Process.Pid)

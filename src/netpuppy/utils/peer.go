@@ -1,9 +1,5 @@
 package utils
 
-import (
-	"os/exec"
-)
-
 // Depending on input, create this peer's type:
 type Peer struct {
 	ConnectionType string
@@ -12,7 +8,7 @@ type Peer struct {
 	Address        string
 	Connection     Socket
 	Shell          bool
-	ShellProcess   exec.Cmd
+	ShellProcess   BashShell // Value at address of RealShell instance
 }
 
 func CreatePeer(port int, address string, listen bool, shell bool) *Peer {
