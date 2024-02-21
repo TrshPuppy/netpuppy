@@ -9,7 +9,7 @@ func TestCreateConnectBackPeer(t *testing.T) {
 	var dummyPort int = 69
 	var dummyAddress string = "69.69.69.69"
 	var dummyListen bool = false
-	var dummyConnectionType string = "connect_back"
+	var dummyConnectionType string = "connect-back"
 	var dummyShell bool = true
 
 	// Act

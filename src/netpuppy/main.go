@@ -51,7 +51,7 @@ func runApp(c utils.ConnectionGetter) {
 
 	// Create peer instance based on user input:
 	var socket utils.Socket
-	thisPeer := utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
+	var thisPeer *utils.Peer = utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
 
 	// Update user:
 	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
@@ -68,6 +68,7 @@ func runApp(c utils.ConnectionGetter) {
 	thisPeer.Connection = socket
 
 	// If shell flag is true: start shell:
+	fmt.Printf("This peer shell: %v\n", thisPeer.Shell)
 	if thisPeer.Shell {
 		var err error = utils.StartHelperShell(thisPeer)
 		if err != nil {
@@ -75,6 +76,9 @@ func runApp(c utils.ConnectionGetter) {
 			os.Stderr.WriteString(" " + err.Error() + "\n")
 		}
 	}
+
+	// test shell
+	//fmt.Printf("Shell string: %v\n", thisPeer.ShellProcess.Process.Pid)
 
 	// Update banner w/ missing port:
 	// var missingPortInBanner = utils.PrintMissingPortToBanner(thisPeer.ConnectionType, thisPeer.Connection)
@@ -117,7 +121,7 @@ func runApp(c utils.ConnectionGetter) {
 	}
 }
 
-func listenForSIGINT(thisPeer utils.Peer) {
+func listenForSIGINT(thisPeer *utils.Peer) {
 	// If SIGINT: close connection, exit w/ code 2
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)

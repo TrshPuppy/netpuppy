@@ -12,10 +12,10 @@ type Peer struct {
 	Address        string
 	Connection     Socket
 	Shell          bool
-	ShellProcess   *exec.Cmd
+	ShellProcess   exec.Cmd
 }
 
-func CreatePeer(port int, address string, listen bool, shell bool) Peer {
+func CreatePeer(port int, address string, listen bool, shell bool) *Peer {
 	var thisPeer Peer
 
 	if listen {
@@ -23,7 +23,7 @@ func CreatePeer(port int, address string, listen bool, shell bool) Peer {
 	} else {
 		thisPeer = getConnectBack(port, address, shell)
 	}
-	return thisPeer
+	return &thisPeer
 }
 
 func getOffense(port int, shell bool) Peer {
@@ -34,6 +34,6 @@ func getOffense(port int, shell bool) Peer {
 }
 
 func getConnectBack(port int, address string, shell bool) Peer {
-	connectBackPeer := Peer{RPort: port, Address: address, ConnectionType: "connect_back", Shell: shell}
+	connectBackPeer := Peer{RPort: port, Address: address, ConnectionType: "connect-back", Shell: shell}
 	return connectBackPeer
 }
