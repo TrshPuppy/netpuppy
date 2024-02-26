@@ -8,23 +8,29 @@ type Peer struct {
 	Address        string
 	Connection     Socket
 	Shell          bool
-	ShellProcess   BashShell // Value at address of RealShell instance
+	ShellProcess   BashShell
+	ReportTo       string
 }
 
 func CreatePeer(port int, address string, listen bool, shell bool) *Peer {
 	var thisPeer Peer
 
-	if listen {
+	if listen { // Offense peer
 		thisPeer = getOffense(port, shell)
-	} else {
+	} else { // Connect-back peer
 		thisPeer = getConnectBack(port, address, shell)
+	}
+
+	// If we are the connect-back & --shell was given, report to bash (socket data redirected to bash)
+	if shell && !listen {
+		thisPeer.ReportTo = "bash"
+	} else {
+		thisPeer.ReportTo = "user"
 	}
 	return &thisPeer
 }
 
 func getOffense(port int, shell bool) Peer {
-
-	// localPort := fmt.Sprintf("%v", port)
 	offensePeer := Peer{LPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
 	return offensePeer
 }

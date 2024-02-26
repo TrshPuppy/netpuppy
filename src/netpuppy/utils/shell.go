@@ -8,10 +8,10 @@ import (
 )
 
 type BashShell interface {
-	Start() error
-	StdinPipe() (io.WriteCloser, error)
-	StdoutPipe() (io.ReadCloser, error)
-	StderrPipe() (io.ReadCloser, error)
+	StartShell() error
+	PipeStdin() (io.WriteCloser, error)
+	PipeStdout() (io.ReadCloser, error)
+	PipeStderr() (io.ReadCloser, error)
 }
 
 type ShellGetter interface {
@@ -100,64 +100,50 @@ func (g RealShellGetter) GetConnectBackInitiatedShell(thisPeer *Peer) BashShell 
 	return bShell
 }
 
-func (s RealShell) Start() error { // Start the shell, return the error if there is one?
-
+func (s RealShell) StartShell() error { // Start the shell, return the error if there is one?
 	// Start the shell:
 	var erR error = s.realShell.Start()
-	if erR != nil {
-		fmt.Printf("Error starting shell process: %v\n", erR)
-		os.Stderr.WriteString(" " + erR.Error() + "\n")
-		os.Exit(1)
-	}
+	// if erR != nil {
+	// 	fmt.Printf("Error starting shell process: %v\n", erR)
+	// 	os.Stderr.WriteString(" " + erR.Error() + "\n")
+	// 	os.Exit(1)
+	// }
 
 	return erR
 }
 
-func (s RealShell) StdinPipe() (io.WriteCloser, error) {
+func (s RealShell) PipeStdin() (io.WriteCloser, error) {
 	// Establish pipe to bash stdin:
 	bashIn, eRr := s.realShell.StdinPipe()
-	if eRr != nil {
-		fmt.Printf("Error creating shell STDIN pipe: %v\n", eRr)
-		os.Stderr.WriteString(" " + eRr.Error() + "\n")
-		os.Exit(1)
-	}
+	// if eRr != nil {
+	// 	fmt.Printf("Error creating shell STDIN pipe: %v\n", eRr)
+	// 	os.Stderr.WriteString(" " + eRr.Error() + "\n")
+	// 	os.Exit(1)
+	// }
 
 	return bashIn, eRr
 }
 
-func (s RealShell) StdoutPipe() (io.ReadCloser, error) {
+func (s RealShell) PipeStdout() (io.ReadCloser, error) {
 	// Establish pipe to bash stdout:
 	bashOut, erro := s.realShell.StdoutPipe()
-	if erro != nil {
-		fmt.Printf("Error creating shell STDOUT pipe: %v\n", erro)
-		os.Stderr.WriteString(" " + erro.Error() + "\n")
-		os.Exit(1)
-	}
+	// if erro != nil {
+	// 	fmt.Printf("Error creating shell STDOUT pipe: %v\n", erro)
+	// 	os.Stderr.WriteString(" " + erro.Error() + "\n")
+	// 	os.Exit(1)
+	// }
 
 	return bashOut, erro
 }
 
-func (s RealShell) StderrPipe() (io.ReadCloser, error) {
+func (s RealShell) PipeStderr() (io.ReadCloser, error) {
 	// Establish pipe to bash stderr:
 	bashErr, eRro := s.realShell.StderrPipe()
-	if eRro != nil {
-		fmt.Printf("Error creating shell STDERR pipe: %v\n", eRro)
-		os.Stderr.WriteString(" " + eRro.Error() + "\n")
-		os.Exit(1)
-	}
+	// if eRro != nil {
+	// 	fmt.Printf("Error creating shell STDERR pipe: %v\n", eRro)
+	// 	os.Stderr.WriteString(" " + eRro.Error() + "\n")
+	// 	os.Exit(1)
+	// }
 
 	return bashErr, eRro
 }
-
-// Handle own errors, return shell instance blueprinted by BashShell interface:
-// func StartAndReturnHelperShell(thisPeer *Peer) BashShell {
-// 	// Which peer are we? -- changes shell execution
-// 	var g ShellGetter
-// 	var s BashShell
-
-// 	if thisPeer.ConnectionType == "connect-back" {
-// 		s = g.GetConnectBackInitiatedShell(thisPeer)
-// 	}
-
-// 	return s
-// }
