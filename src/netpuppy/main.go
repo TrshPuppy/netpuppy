@@ -18,7 +18,8 @@ import (
 	"netpuppy/utils"
 )
 
-func readFromUserShell(shellUserChannel chan<- string, stdout io.ReadCloser, stderr io.ReadCloser) {
+func readFromUserShell(shellUserChannel chan<- string, stdout *io.ReadCloser, stderr *io.ReadCloser) {
+	fmt.Printf("value of stdout in readFromShell: %v\n", stdout)
 	/*
 		Depending on if the shell process is true on the peer struct
 		we have 3 go routines. 2 for if the shell is true (readStdout, readStderr)
@@ -27,10 +28,10 @@ func readFromUserShell(shellUserChannel chan<- string, stdout io.ReadCloser, std
 		The go routines put data they get from their sources into the channel.
 	*/
 
-	readForStdout := func(stdout io.ReadCloser, shellUserChannel chan<- string) {
+	readForStdout := func(stdout *io.ReadCloser, shellUserChannel chan<- string) {
 		// For loop checks for data in shell. stdout
 		for {
-			outData, err := io.ReadAll(stdout)
+			outData, err := io.ReadAll(*stdout)
 			if err != nil {
 				fmt.Printf("Error reading data from stdout pipe: %v\n", err)
 				os.Stderr.WriteString(err.Error() + "\n")
@@ -43,9 +44,9 @@ func readFromUserShell(shellUserChannel chan<- string, stdout io.ReadCloser, std
 		// Wait? Return?
 	}
 
-	readForStderr := func(stderr io.ReadCloser, shellUserChannel chan<- string) string {
+	readForStderr := func(stderr *io.ReadCloser, shellUserChannel chan<- string) string {
 		for {
-			errData, err := io.ReadAll(stderr)
+			errData, err := io.ReadAll(*stderr)
 			if err != nil {
 				fmt.Printf("Error reading data from stderr pipe: %v\n", err)
 				os.Stderr.WriteString(err.Error() + "\n")
@@ -147,9 +148,9 @@ func runApp(c utils.ConnectionGetter) {
 	// Start SIGINT go routine & start channel to listen for SIGINT:
 	listenForSIGINT(thisPeer)
 
-	var stdin io.WriteCloser
-	var stdout io.ReadCloser
-	var stderr io.ReadCloser
+	var stdin *io.WriteCloser
+	var stdout *io.ReadCloser
+	var stderr *io.ReadCloser
 
 	socketChannel := make(chan []byte)
 	shellUserChannel := make(chan string)
@@ -164,33 +165,39 @@ func runApp(c utils.ConnectionGetter) {
 	*/
 
 	// If this peer is cB & has a shell: get pipes and start
-	// go routines to handle them
+	// 		go routines to handle them
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		// Hook up the pipes:
-		var err error
-		stdout, err = thisPeer.ShellProcess.PipeStdout()
-		if err != nil {
-			fmt.Printf("Error getting stdout pipe from shell: %v\n", err)
-			os.Stderr.WriteString(err.Error() + "\n")
-			os.Exit(1)
-		}
+		//		(the pipes will be attached to the BashShell struct)
+		//		var err error
+		// stdout, err = thisPeer.ShellProcess.PipeStdout()
+		stdout = thisPeer.ShellProcess.PipeStdout()
+		//		if err != nil {
+		//			fmt.Printf("Error getting stdout pipe from shell: %v\n", err)
+		//			os.Stderr.WriteString(err.Error() + "\n")
+		//			os.Exit(1)
+		//		}
 
-		var eRr error
-		stdin, eRr = thisPeer.ShellProcess.PipeStdin()
-		if err != nil {
-			fmt.Printf("Error getting pipe for shell stdin: %v\n", eRr)
-			os.Stderr.WriteString(eRr.Error() + "\n")
-			os.Exit(1)
-		}
-		defer stdin.Close()
+		//		var eRr error
+		// stdin, eRr = thisPeer.ShellProcess.PipeStdin()
+		stdin = thisPeer.ShellProcess.PipeStdin()
+		//		if err != nil {
+		//			fmt.Printf("Error getting pipe for shell stdin: %v\n", eRr)
+		//			os.Stderr.WriteString(eRr.Error() + "\n")
+		//			os.Exit(1)
+		//		}
 
-		var erro error
-		stderr, erro = thisPeer.ShellProcess.PipeStderr()
-		if err != nil {
-			fmt.Printf("Error getting stderr pipe from shell: %v\n", erro)
-			os.Stderr.WriteString(erro.Error() + "\n")
-			os.Exit(1)
-		}
+		fmt.Printf("Address of stdin pipe in main.fo: %v\n", stdin)
+		// defer stdin.Close()
+
+		//		var erro error
+		//		stderr, erro = thisPeer.ShellProcess.PipeStderr()
+		stderr = thisPeer.ShellProcess.PipeStderr()
+		//		if err != nil {
+		//			fmt.Printf("Error getting stderr pipe from shell: %v\n", erro)
+		//			os.Stderr.WriteString(erro.Error() + "\n")
+		//			os.Exit(1)
+		//		}
 
 		// Start shell:
 		erR := thisPeer.ShellProcess.StartShell()
@@ -199,6 +206,7 @@ func runApp(c utils.ConnectionGetter) {
 		}
 
 		// Start go routine to handle stdin & stdout
+		fmt.Printf("output of stdout in main.go: %v\n", stdout)
 		readFromUserShell(shellUserChannel, stdout, stderr)
 	} else { // If this peer does not need a shell, start go routine to read user input:
 		// do we need to send nil?
@@ -229,7 +237,7 @@ func runApp(c utils.ConnectionGetter) {
 			if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 				// Write socket data to stdin:
 				fmt.Printf("converted: %v\n", string(sendString))
-				_, err := io.WriteString(stdin, sendString)
+				_, err := io.WriteString(*stdin, sendString)
 				if err != nil {
 					log.Fatalf("Error writing socket data to shell stdin: %v\n", err)
 				}

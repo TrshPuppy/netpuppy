@@ -9,9 +9,9 @@ import (
 
 type BashShell interface {
 	StartShell() error
-	PipeStdin() (io.WriteCloser, error)
-	PipeStdout() (io.ReadCloser, error)
-	PipeStderr() (io.ReadCloser, error)
+	PipeStdin() *io.WriteCloser
+	PipeStdout() *io.ReadCloser
+	PipeStderr() *io.ReadCloser
 }
 
 type ShellGetter interface {
@@ -27,6 +27,9 @@ type RealShellGetter struct {
 // Holds the REAL shell process/ Cmd struct (from exec pkg):
 type RealShell struct {
 	realShell *exec.Cmd
+	// stdinPipeAddress  *io.WriteCloser
+	// stdoutPipeAddress *io.ReadCloser
+	// stderrPipeAddress *io.ReadCloser
 }
 
 // Get shell for Offense-initiated peer:
@@ -54,7 +57,7 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 	return pointerToShell
 }
 
-func (s RealShell) StartShell() error { // Start the shell, return the error if there is one?
+func (s *RealShell) StartShell() error { // Start the shell, return the error if there is one?
 	// Start the shell:
 	var erR error = s.realShell.Start()
 	// if erR != nil {
@@ -66,38 +69,53 @@ func (s RealShell) StartShell() error { // Start the shell, return the error if 
 	return erR
 }
 
-func (s RealShell) PipeStdin() (io.WriteCloser, error) {
+func (s *RealShell) PipeStdin() *io.WriteCloser {
 	// Establish pipe to bash stdin:
 	bashIn, eRr := s.realShell.StdinPipe()
-	// if eRr != nil {
-	// 	fmt.Printf("Error creating shell STDIN pipe: %v\n", eRr)
-	// 	os.Stderr.WriteString(" " + eRr.Error() + "\n")
-	// 	os.Exit(1)
-	// }
+	if eRr != nil {
+		fmt.Printf("Error creating shell STDIN pipe: %v\n", eRr)
+		os.Stderr.WriteString(" " + eRr.Error() + "\n")
+		os.Exit(1)
+	}
 
-	return bashIn, eRr
+	defer bashIn.Close()
+
+	// Attach memory address of pipe to struct:
+	var pointerToBashIn *io.WriteCloser = &bashIn
+	// s.stdinPipeAddress = pointerToBashIn
+
+	fmt.Printf("Address of stdin pipe in shell.go: %v\n", &bashIn)
+	return pointerToBashIn
 }
 
-func (s RealShell) PipeStdout() (io.ReadCloser, error) {
+func (s *RealShell) PipeStdout() *io.ReadCloser {
 	// Establish pipe to bash stdout:
 	bashOut, erro := s.realShell.StdoutPipe()
-	// if erro != nil {
-	// 	fmt.Printf("Error creating shell STDOUT pipe: %v\n", erro)
-	// 	os.Stderr.WriteString(" " + erro.Error() + "\n")
-	// 	os.Exit(1)
-	// }
+	if erro != nil {
+		fmt.Printf("Error creating shell STDOUT pipe: %v\n", erro)
+		os.Stderr.WriteString(" " + erro.Error() + "\n")
+		os.Exit(1)
+	}
 
-	return bashOut, erro
+	// Attach memory addresses of pipe to struct:
+	var pointerToBashOut *io.ReadCloser = &bashOut
+	//s.stdoutPipeAddress = pointerToBashOut
+
+	return pointerToBashOut
 }
 
-func (s RealShell) PipeStderr() (io.ReadCloser, error) {
+func (s *RealShell) PipeStderr() *io.ReadCloser {
 	// Establish pipe to bash stderr:
 	bashErr, eRro := s.realShell.StderrPipe()
-	// if eRro != nil {
-	// 	fmt.Printf("Error creating shell STDERR pipe: %v\n", eRro)
-	// 	os.Stderr.WriteString(" " + eRro.Error() + "\n")
-	// 	os.Exit(1)
-	// }
+	if eRro != nil {
+		fmt.Printf("Error creating shell STDERR pipe: %v\n", eRro)
+		os.Stderr.WriteString(" " + eRro.Error() + "\n")
+		os.Exit(1)
+	}
 
-	return bashErr, eRro
+	// Attach memory address of pipe to struct:
+	var pointerToBashErr *io.ReadCloser = &bashErr
+	//	s.stderrPipeAddress = pointerToBashErr
+
+	return pointerToBashErr
 }
