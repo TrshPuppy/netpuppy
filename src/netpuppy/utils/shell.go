@@ -39,7 +39,7 @@ func (g RealShellGetter) GetConnectBackInitiatedShell(thisPeer *Peer) BashShell 
 	// If bash exists on the system, find it, save the path:
 	var bShell RealShell
 
-	bashCopPath, err := exec.LookPath(`/bin/bash`) // bashPath @0xfaraday
+	bashCopPath, err := exec.LookPath(`/usr/bin/bash`) // bashPath @0xfaraday
 	if err != nil {
 		fmt.Printf("Error finding bash shell path: %v\n", err)
 		os.Stderr.WriteString(" " + err.Error() + "\n")
@@ -48,55 +48,6 @@ func (g RealShellGetter) GetConnectBackInitiatedShell(thisPeer *Peer) BashShell 
 
 	bShell = RealShell{realShell: *exec.Command(bashCopPath)}
 
-	// If bash exists, attach the ADDRESS to exec.Cmd to the peer struct:
-	//thisPeer.ShellProcess = bShell
-
-	//	// Establish pipe to bash stdin, stdout, & stderr:
-	//	bashIn, eRr := bShell.StdinPipe()
-	//	if eRr != nil {
-	//		fmt.Printf("Error creating shell STDIN pipe: %v\n", eRr)
-	//		os.Stderr.WriteString(" " + eRr.Error() + "\n")
-	//		os.Exit(1)
-	//	}
-
-	//	bashOut, erro := bShell.StdoutPipe()
-	//	if erro != nil {
-	//		fmt.Printf("Error creating shell STDOUT pipe: %v\n", erro)
-	//		os.Stderr.WriteString(" " + erro.Error() + "\n")
-	//		os.Exit(1)
-	//	}
-
-	// 	bashErr, eRro := bShell.StderrPipe()
-	// 	if eRro != nil {
-	// 		fmt.Printf("Error creating shell STDERR pipe: %v\n", eRro)
-	// 		os.Stderr.WriteString(" " + eRro.Error() + "\n")
-	// 		os.Exit(1)
-	// 	}
-
-	// Start the shell:
-	// var erR error = thisPeer.ShellProcess.Start()
-	// if erR != nil {
-	// 	fmt.Printf("Error starting shell process: %v\n", erR)
-	// 	os.Stderr.WriteString(" " + erR.Error() + "\n")
-	// 	os.Exit(1)
-	// }
-
-	// Test pipe into stdin
-	// 	bashIn, err := bShell.realShell.StdinPipe()
-	// 	go func() {
-	// 		defer bashIn.Close()
-	// 		io.WriteString(bashIn, "/usr/bin/date")
-	// 	}()
-	//
-	// 	out, eRR := bShell.realShell.StdoutPipe()
-	// 	if eRR != nil {
-	// 		fmt.Printf("Error Getting shell combined output: %v\n", eRR)
-	// 		os.Stderr.WriteString(" " + eRR.Error() + "\n")
-	// 		os.Exit(1)
-	// 	}
-	// 	fmt.Printf("Test stdout: %v\n", out)
-
-	// return bShell
 	return bShell
 }
 

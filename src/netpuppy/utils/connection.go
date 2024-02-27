@@ -74,11 +74,6 @@ type TestConnectionGetter struct {
 	// Leave empty
 }
 
-// type Addr interface {
-// 	TestNetWork() string
-// 	TestNetWorkString() string
-// }
-
 func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
 	testClientConnection := TestSocket{Port: rPort, Address: address}
 	return testClientConnection
@@ -188,6 +183,12 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	}
 
 	// Attach the connection to the RealSocket struct & return the instance:
+	//var pointerToRealSocket *net.Conn = &listenerConnection //POINTER: attaching the address of the actual socket to the struct
 	listenerSocket = RealSocket{realSocket: listenerConnection}
-	return listenerSocket
+	//listenerSocket = RealSocket{realSocket: pointerToRealSocket}
+
+	var pointerToRealSocket *RealSocket = &listenerSocket
+
+	fmt.Printf("socket address in peer.go: %v\n", pointerToRealSocket)
+	return pointerToRealSocket // POINTER: returning the address of the actual RealSocket instance
 }
