@@ -1,10 +1,6 @@
 package utils
 
-import (
-	"os/exec"
-)
-
-// Depending on input, create this peer's type:
+// Depending on user flags given, create this peer's type:
 type Peer struct {
 	ConnectionType string
 	RPort          int
@@ -12,28 +8,36 @@ type Peer struct {
 	Address        string
 	Connection     Socket
 	Shell          bool
-	ShellProcess   *exec.Cmd
+	ShellProcess   BashShell
+	ReportTo       string
 }
 
-func CreatePeer(port int, address string, listen bool, shell bool) Peer {
-	var thisPeer Peer
+// Create the peer struct which will guide the rest of the logic for NetPuppy:
+func CreatePeer(port int, address string, listen bool, shell bool) *Peer {
+	var thisPeer *Peer // POINTER: the functions which initialize thisPeer are returning addresses to the instances of Peer they create
 
-	if listen {
+	// If listen is true, we are the Offense peer (server):
+	if listen { // Offense peer
 		thisPeer = getOffense(port, shell)
-	} else {
+	} else { // else, we are the Connect-back peer
 		thisPeer = getConnectBack(port, address, shell)
 	}
+
 	return thisPeer
 }
 
-func getOffense(port int, shell bool) Peer {
+// The Offense-type peer is the server and will listen on the any address:
+func getOffense(port int, shell bool) *Peer {
+	// Create offense-type instance of Peer:
+	var offensePeer Peer = Peer{LPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
 
-	// localPort := fmt.Sprintf("%v", port)
-	offensePeer := Peer{LPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
-	return offensePeer
+	return &offensePeer // POINTER: return the address of the offensePeer instance (instead of a copy)
 }
 
-func getConnectBack(port int, address string, shell bool) Peer {
-	connectBackPeer := Peer{RPort: port, Address: address, ConnectionType: "connect_back", Shell: shell}
-	return connectBackPeer
+// The Connect-back peer is the client & will connect to the given IP address & port:
+func getConnectBack(port int, address string, shell bool) *Peer {
+	// Create connect-back instance of Peer:
+	var connectBackPeer Peer = Peer{RPort: port, Address: address, ConnectionType: "connect-back", Shell: shell}
+
+	return &connectBackPeer // POINTER: return the address of the connectBackPeer instance (instead of copy)
 }

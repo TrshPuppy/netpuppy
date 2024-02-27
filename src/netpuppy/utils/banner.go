@@ -40,7 +40,7 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort i
 	var s3 string
 	var s4 string
 
-	if choice == "connect_back" {
+	if choice == "connect-back" {
 		mode := "Connect Back"
 		s0 = `
 	bork!

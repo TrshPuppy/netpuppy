@@ -9,8 +9,9 @@ type Flags struct {
 	Shell  bool
 }
 
+// Get flags from user at execution and attach to struct:
 func GetFlags() Flags {
-	// Set flag values based on input:
+	// Set flag values based on user input at execution:
 	listenFlag := flag.Bool("l", false, "put NetPuppy in listen mode")
 	hostFlag := flag.String("H", "0.0.0.0", "target host IP address to connect to")
 	turdnuggies := flag.Int("p", 40404, "target port") // portFlag @Trauma_x_Sella
