@@ -118,10 +118,11 @@ func runApp(c utils.ConnectionGetter) {
 	// Make connection:
 	if thisPeer.ConnectionType == "offense" {
 		socket = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
-		fmt.Printf("Address of socket in main.go: %v\n", socket)
 	} else {
 		socket = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address)
 	}
+
+	fmt.Printf("Address of socket in main.go: %v\n", socket)
 
 	// Connect socket connection to peer
 	thisPeer.Connection = socket
