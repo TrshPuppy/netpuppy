@@ -156,6 +156,8 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string)
 	// Attach connection to RealSocket and return the pointer to the instance:
 	clientSocket = RealSocket{realSocket: clientConnection}
 	pointerToRealSocket = &clientSocket
+
+	fmt.Printf("socket address in peer.go: %v\n", pointerToRealSocket)
 	return pointerToRealSocket
 }
 

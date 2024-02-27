@@ -26,7 +26,7 @@ type RealShellGetter struct {
 
 // Holds the REAL shell process/ Cmd struct (from exec pkg):
 type RealShell struct {
-	realShell exec.Cmd
+	realShell *exec.Cmd
 }
 
 // Get shell for Offense-initiated peer:
@@ -35,9 +35,10 @@ type RealShell struct {
 // }
 
 // Get shell for CB-initiated peer:
-func (g RealShellGetter) GetConnectBackInitiatedShell(thisPeer *Peer) BashShell {
+func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 	// If bash exists on the system, find it, save the path:
 	var bShell RealShell
+	var pointerToShell *RealShell
 
 	bashCopPath, err := exec.LookPath(`/usr/bin/bash`) // bashPath @0xfaraday
 	if err != nil {
@@ -46,9 +47,11 @@ func (g RealShellGetter) GetConnectBackInitiatedShell(thisPeer *Peer) BashShell 
 		os.Exit(1)
 	}
 
-	bShell = RealShell{realShell: *exec.Command(bashCopPath)}
+	bShell = RealShell{realShell: exec.Command(bashCopPath)}
+	pointerToShell = &bShell
 
-	return bShell
+	fmt.Printf("Address of shell process in shell.go: %v\n", pointerToShell)
+	return pointerToShell
 }
 
 func (s RealShell) StartShell() error { // Start the shell, return the error if there is one?

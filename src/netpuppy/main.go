@@ -133,7 +133,8 @@ func runApp(c utils.ConnectionGetter) {
 		var realShellGetter utils.RealShellGetter
 		fmt.Printf("This peer shell: %v\n", thisPeer.Shell)
 
-		shell = realShellGetter.GetConnectBackInitiatedShell(thisPeer)
+		shell = realShellGetter.GetConnectBackInitiatedShell()
+		fmt.Printf("Address of shell in main.go: %v\n", shell)
 
 		// Connect shell to peer:
 		thisPeer.ShellProcess = shell
@@ -143,8 +144,7 @@ func runApp(c utils.ConnectionGetter) {
 	// var missingPortInBanner = utils.PrintMissingPortToBanner(thisPeer.ConnectionType, thisPeer.Connection)
 	// fmt.Println(missingPortInBanner)
 
-	// Start SIGINT go routine:
-	// Start channel to listen for SIGINT:
+	// Start SIGINT go routine & start channel to listen for SIGINT:
 	listenForSIGINT(thisPeer)
 
 	var stdin io.WriteCloser
