@@ -11,12 +11,12 @@ NetPuppy has two primary modes: offense & connect-back.
 ### Offense
 The 'offensive' peer is executed as a server and listens to the `0.0.0.0` address and a specified port. It will bind incoming TCP connections to that port.
 ### Connect-Back
-The 'connect-back' peer starts w/ a client-like relationship to the offense peer. I.e. it will connect to the address and port you give it. However, if you give the `--shell` flag, it will start a bash process on the local machine. This shell will take input from the offensive peer (via the socket) and execute the input as commands on the machine its running on. The output from the shell will then be echoed back to the offensive peer.
+The 'connect-back' peer starts w/ a client-like relationship to the offense peer. I.e. it will connect to the address and port you give it. Additionally, if you give the `--shell` flag, it will start a bash process on the local machine. This shell will take input from the offensive peer (via the socket) and execute the input as commands on the machine its running on. The output from the shell will then be echoed back to the offensive peer.
 #### Flags:
 - `-H` the host IP address you want to connect to (in connect-back mode)
 - `-p` the port you want to start your peer on (both mode types)
 - `-l` tell NetPuppy to listen, this will start NP in the offense mode. You can also give a port number.
-- '--shell' tell NetPuppy to start a bash shell on the client peer which will take socket input as stdin and output stdout/stderr back into the socket.
+- `--shell` tell NetPuppy to start a bash shell on the client peer which will take socket input as stdin and output stdout/stderr back into the socket.
 ## Examples:
 ### Offense Peer:
 ```
