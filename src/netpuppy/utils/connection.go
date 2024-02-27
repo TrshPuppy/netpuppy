@@ -46,8 +46,7 @@ import (
 )
 
 // SHARED Code:
-//
-//	The Socket and ConnectionGetter interfaces are used by both real & test code:
+// ..... The Socket and ConnectionGetter interfaces are used by both real & test code:
 type Socket interface {
 	// Used to check real (RealSocket) & test (TestSocket) structs
 	Read() ([]byte, error)
@@ -137,8 +136,7 @@ func (s RealSocket) Close() error {
 }
 
 // These next 2 function create the ACTUAL socket and attach the connection to RealSocket
-//
-//	Create client-type socket & attach to RealSocket:
+// ..... Create client-type socket & attach to RealSocket:
 func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
 	var clientConnection net.Conn
 	var err error
@@ -146,18 +144,18 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string)
 	var clientSocket RealSocket
 	var pointerToRealSocket *RealSocket
 
+	// Get client connection:
 	clientConnection, err = net.Dial("tcp", remoteHost)
 	if err != nil {
-		fmt.Printf("Error creating connection: %v\n", err)
+		fmt.Printf("Error creating client connection (connection.go): %v\n", err)
 		os.Stderr.WriteString(" " + err.Error() + "\n")
 		os.Exit(1)
 	}
 
-	// Attach connection to RealSocket and return the pointer to the instance:
+	// Attach connection to RealSocket & get the pointer to the instance:
 	clientSocket = RealSocket{realSocket: clientConnection}
 	pointerToRealSocket = &clientSocket
 
-	fmt.Printf("socket address in peer.go: %v\n", pointerToRealSocket)
 	return pointerToRealSocket
 }
 
@@ -188,10 +186,10 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 		os.Exit(1)
 	}
 
-	// Attach the connection to the RealSocket struct & return the pointer to the intstance:
+	// Attach the connection to the RealSocket struct & return the pointer to the instance:
 	listenerSocket = RealSocket{realSocket: listenerConnection}
 	pointerToRealSocket = &listenerSocket
 
 	fmt.Printf("socket address in peer.go: %v\n", pointerToRealSocket)
-	return pointerToRealSocket // POINTER: returning the address of the actual RealSocket instance
+	return pointerToRealSocket
 }
