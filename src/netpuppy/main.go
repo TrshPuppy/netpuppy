@@ -187,6 +187,8 @@ func runApp(c utils.ConnectionGetter) {
 		//			os.Exit(1)
 		//		}
 
+		// defer *stdin.Close()
+
 		fmt.Printf("Address of stdin pipe in main.fo: %v\n", stdin)
 		// defer stdin.Close()
 
@@ -219,7 +221,8 @@ func runApp(c utils.ConnectionGetter) {
 	for {
 		select {
 		case socketBoundInput := <-shellUserChannel:
-			fmt.Printf("ioReader: %v\n", socketBoundInput)
+			converted := fmt.Sprintf("%c", socketBoundInput)
+			fmt.Printf("ioReader: %s\n", string(converted))
 			// Reads shellUserChannel and writes the data to the socket:
 			_, err := thisPeer.Connection.Write([]byte(socketBoundInput))
 
@@ -237,10 +240,16 @@ func runApp(c utils.ConnectionGetter) {
 			if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 				// Write socket data to stdin:
 				fmt.Printf("converted: %v\n", string(sendString))
-				_, err := io.WriteString(*stdin, sendString)
-				if err != nil {
-					log.Fatalf("Error writing socket data to shell stdin: %v\n", err)
-				}
+
+				var dereferenceForCloseMethod io.WriteCloser = *stdin
+				go func() {
+
+					defer dereferenceForCloseMethod.Close()
+					_, err := io.WriteString(dereferenceForCloseMethod, sendString)
+					if err != nil {
+						log.Fatalf("Error writing socket data to shell stdin: %v\n", err)
+					}
+				}()
 
 			} else { // print data from socket to user:
 				_, err := os.Stdout.Write(socketIncoming)

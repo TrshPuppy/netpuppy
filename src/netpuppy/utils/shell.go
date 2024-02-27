@@ -78,7 +78,7 @@ func (s *RealShell) PipeStdin() *io.WriteCloser {
 		os.Exit(1)
 	}
 
-	defer bashIn.Close()
+	//defer bashIn.Close()
 
 	// Attach memory address of pipe to struct:
 	var pointerToBashIn *io.WriteCloser = &bashIn
