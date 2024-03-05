@@ -39,10 +39,10 @@
 package utils
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 	"os"
+	"time"
 )
 
 // SHARED Code:
@@ -52,9 +52,7 @@ type Socket interface {
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
 	Close() error
-	// RemoteAddr() Addr
-	//                                     TP U ARE HERE:
-	// add RemoteAddr() and LocalAddr()? (so we can update the user w/ the actual port numbers)
+	SetDeadline(int) error
 }
 
 type ConnectionGetter interface {
@@ -101,6 +99,11 @@ func (i TestSocket) Close() error {
 	return testCloseErr
 }
 
+func (i TestSocket) SetDeadline(miliseconds int) error {
+	var testDeadlineErr error
+	return testDeadlineErr
+}
+
 // REAL code:
 type RealSocket struct { // This is the only code which holds the ACTUAL net connection:
 	realSocket net.Conn
@@ -112,12 +115,61 @@ type RealConnectionGetter struct {
 
 // Read from the ACTUAL socket on RealSocket struct:
 func (s RealSocket) Read() ([]byte, error) {
-	var dataBytes []byte
+	// Buffer tells Read() to read 1024 bytes from socket
+	var buffer []byte = make([]byte, 1024)
+	var numberOfBytesSent int = 0
+	var fullData []byte
 	var err error
 
-	dataBytes, err = bufio.NewReader(s.realSocket).ReadBytes('\n')
+	// This for loop should capture all the data currently in the socket (by chunking it):
+	for {
+		numberOfBytesSent, err = s.realSocket.Read(buffer)
+		if err != nil {
+			break
+		}
 
-	return dataBytes, err
+		// If no error (from timeout or otherwise), add buffer to chunk
+		dataChunk := buffer[:numberOfBytesSent]
+
+		// Add chunk to whole
+		fullData = append(fullData, dataChunk...)
+
+		// Reset buffer:
+		buffer = make([]byte, 1024)
+	}
+
+	// If an error broke the for loop, we either received all data OR
+	//....... hit the timeout set w/ net.Conn.SetReadDeadline
+	if err != nil {
+		// Check for timeout error using net pkg:
+		//....... (type assertion checks if 'err' uses net.Error interface)
+		//....... (( isANetError will be true if it is using the net.Error interface))
+		netErr, isANetError := err.(net.Error)
+		if isANetError && netErr.Timeout() {
+			// Create our own timeout error which is easier to check in main:
+			var customTimeoutError error = fmt.Errorf("custom timeout error")
+			if len(fullData) > 0 {
+				return fullData, customTimeoutError
+			}
+
+			return buffer, customTimeoutError
+		}
+	}
+
+	return buffer[:numberOfBytesSent], err
+
+	// Create io pipe and write to it, return pointer to reader?
+	// pipeReader, pipeWriter := io.Pipe()
+
+	// dataBytes, err :=
+
+	// var dataBytes []byte
+	// var err error
+
+	// dataBytes, err = bufio.NewReader(s.realSocket).ReadBytes('\n')
+	// fmt.Printf("data read in socket method: %s\n", string(dataBytes))
+
+	// return dataBytes, err
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
@@ -132,6 +184,14 @@ func (s RealSocket) Write(userInput []byte) (int, error) {
 // Close the ACTUAL socket:
 func (s RealSocket) Close() error {
 	var err error = s.realSocket.Close()
+	return err
+}
+
+// Set read deadline on ACTUAL socket:
+func (s RealSocket) SetDeadline(miliseconds int) error {
+	timeout := time.Duration(miliseconds) * time.Millisecond
+	err := s.realSocket.SetReadDeadline(time.Now().Add(timeout))
+
 	return err
 }
 

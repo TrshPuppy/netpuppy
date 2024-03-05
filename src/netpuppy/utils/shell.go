@@ -58,7 +58,7 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 	}
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	bShell = RealShell{realShell: exec.Command(bashCopPath)}
+	bShell = RealShell{realShell: exec.Command(bashCopPath, "-i")}
 
 	// Get the pointer to the shell process and & return it:
 	pointerToShell = &bShell
@@ -69,6 +69,10 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 func (s *RealShell) StartShell() error {
 	// Start the shell:
 	var erR error = s.realShell.Start()
+	// var waitErr error = s.realShell.Wait()
+	// if waitErr != nil {
+	// 	log.Fatalf("Error calling shell.Wait() method: %v\n", waitErr)
+	// }
 
 	return erR
 }

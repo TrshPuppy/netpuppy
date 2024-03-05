@@ -34,6 +34,8 @@ func readFromUserShell(shellUserChannel chan<- string, stdout *io.ReadCloser, st
 				os.Exit(1)
 			}
 			// If data: change to string & put into channel:
+
+			fmt.Printf("stdout go routine data from channel: %s\n", string(outData))
 			cData := string(outData)
 			shellUserChannel <- cData
 		}
@@ -63,7 +65,6 @@ func readFromUserShell(shellUserChannel chan<- string, stdout *io.ReadCloser, st
 		for {
 			fmt.Print(">> ")
 			text, _ := reader.ReadString('\n')
-			fmt.Printf("user input before channel: %v\n", text)
 
 			// If there is input, put into channel:
 			if len(text) > 0 {
@@ -93,20 +94,79 @@ func readFromSocket(socketChannel chan<- []byte, connection utils.Socket) {
 
 	// Read from connection socket:
 	for {
-		dataBytes, err := connection.Read()
+		dataReadFromSocket, err := connection.Read()
 		if err != nil {
-			fmt.Printf("Error reading from socket: %v\n", err)
-			os.Stderr.WriteString(err.Error())
-			os.Exit(1)
-			return
+			// Check for timeout error on conneciton:
+			if err.Error() == "custom timeout error" {
+				// If the socket timed out, AND data returned, put the data in the channel
+				if len(dataReadFromSocket) > 0 {
+					socketChannel <- dataReadFromSocket
+				}
+
+				continue
+			} else {
+				log.Fatalf("Error reading from socket: %v\n", err.Error())
+			}
 		}
 
-		// If data is not empty:
-		if len(dataBytes) > 0 {
-			fmt.Printf("data before putting in socket channel: %v\n", dataBytes)
-			socketChannel <- dataBytes
-		}
+		// fmt.Printf("For loop\n")
+		// dataChunk, err := connection.Read()
+
+		// fmt.Printf("Data chunk in readFromSocket: %s\n", string(dataChunk))
+		// if err != nil {
+		// 	// ERROR HERE: if there si nothing in the socket, we put things in the channel?
+		// 	if err == io.EOF && len(dataChunk) > 0 {
+		// 		fmt.Printf("Bytes from socket: %v\n", dataWhole)
+		// 		socketChannel <- dataWhole
+		// 		dataWhole = []byte{}
+		// 		continue
+		// 	}
+		// 	fmt.Printf("Error reading from socket: %v\n", err)
+		// 	os.Stderr.WriteString(err.Error())
+		// 	os.Exit(1)
+		// 	return
+		// }
+		// dataWhole = append(dataWhole, dataChunk...)
+
+		// // If data is not empty:
+		// // if len(dataBytes) > 0 {
+		// // 	fmt.Printf("Bytes from socket: %v\n", dataBytes)
+		// // 	socketChannel <- dataBytes
+		// // }
 	}
+}
+
+func writeToShellStdin(stdinChannel chan string, stdin *io.WriteCloser) {
+	// io.WriteString wants us to defer stdin.Close:
+
+	var stdinDereference io.WriteCloser = *stdin
+
+	for {
+		select {
+		case stdinIncoming := <-stdinChannel:
+
+			fmt.Printf("string inbound channel: %s\n", stdinIncoming)
+			_, err := io.WriteString(stdinDereference, stdinIncoming)
+			if err != nil {
+				log.Fatalf("Error writing socket data to shell stdin (main.go): %v\n", err)
+			}
+			fmt.Printf("made it past writing to stdin.\n")
+		default:
+			continue
+		}
+
+		//	Write channel data to shell stdin:
+		//stringInboundToShell := <-stdinChannel
+		// fmt.Printf("string inbound channel: %s\n", stringInboundToShell)
+		// _, err := io.WriteString(stdinDereference, stringInboundToShell)
+		// if err != nil {
+		// 	log.Fatalf("Error writing socket data to shell stdin (main.go): %v\n", err)
+		// }
+		// fmt.Printf("made it past writing to stdin.\n")
+	}
+
+	//stdinDereference.Close()
+	fmt.Printf("end of go routine :(\n")
 }
 
 func runApp(c utils.ConnectionGetter) {
@@ -132,6 +192,8 @@ func runApp(c utils.ConnectionGetter) {
 		socket = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address)
 	}
 
+	// Set read deadline on socket (timeout after x time while trying to read socket):
+	socket.SetDeadline(300)
 	fmt.Printf("Address of socket in main.go: %v\n", socket)
 
 	// Connect socket connection to peer
@@ -161,15 +223,27 @@ func runApp(c utils.ConnectionGetter) {
 	var stdout *io.ReadCloser
 	var stderr *io.ReadCloser
 
+	// Read channels:
 	socketChannel := make(chan []byte)
 	shellUserChannel := make(chan string)
+
+	// Write channel:
+	//stdinChannel := make(chan string)
 
 	// If this peer is connect-back & has a shell: get pipes for shell & start the shell process:
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		// Hook up the pipes & return pointers to them:
 		stdout = thisPeer.ShellProcess.PipeStdout()
+		defStdout := *stdout
+		defer defStdout.Close()
+
 		stdin = thisPeer.ShellProcess.PipeStdin()
+		var stdinDereference io.WriteCloser = *stdin
+		defer stdinDereference.Close()
+
 		stderr = thisPeer.ShellProcess.PipeStderr()
+		defStderr := *stderr
+		defer defStderr.Close()
 
 		// Start shell:
 		erR := thisPeer.ShellProcess.StartShell()
@@ -177,12 +251,14 @@ func runApp(c utils.ConnectionGetter) {
 			log.Fatalf("Error starting shell process: %v\n", erR)
 		}
 
-		// Start go routine to handle stdin & stdout:
+		// Functions to handle stdin & stdout:
 		readFromUserShell(shellUserChannel, stdout, stderr)
+		//go writeToShellStdin(stdinChannel, stdin)
 
 	} else {
 		// If this peer does not need a shell, start go routine to read user input:
 		readFromUserShell(shellUserChannel, nil, nil)
+		//stdinChannel = nil
 	}
 
 	// Start go routine for reading from socket:
@@ -212,14 +288,12 @@ func runApp(c utils.ConnectionGetter) {
 
 	*/
 	for {
+		//fmt.Printf("for loop\n")
 		select {
 		// Read shellUserChannel and write the data to the socket:
 		case socketOutgoing := <-shellUserChannel:
 			// NEED TO: fix encoding/ decoding
 			if len(socketOutgoing) > 3 {
-
-				//converted := fmt.Sprintf("%c", socketOutgoing)
-				fmt.Println("ioReader: ", socketOutgoing)
 				_, err := thisPeer.Connection.Write([]byte(socketOutgoing))
 
 				if err != nil {
@@ -233,21 +307,15 @@ func runApp(c utils.ConnectionGetter) {
 			//socketBoundInput = ""
 		// Read socketChannel & print to user OR redirect to shell process stdin:
 		case ProgramsHoleToBePluggedAndReceiveALoadIPromiseIAmDoneNow := <-socketChannel: // @c0dec0re 'socketIncoming'
-			// NEED TO: fix encoding/ decoding
-			fmt.Printf("socketChannel value: %v\n", ProgramsHoleToBePluggedAndReceiveALoadIPromiseIAmDoneNow)
-
 			// Convert bytes to string:
 			ThisisReallyLongAndReadersAreGreatButHavingOneWriterMakesSense := string(ProgramsHoleToBePluggedAndReceiveALoadIPromiseIAmDoneNow) // @c0decore 'sendString'
 
 			// If we have a cb shell & we're connect-back peer, data received from socket should be sent to shell stdin:
 			if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-				// Convert byte array to string:
-				converted := fmt.Sprintf("%s", string(ThisisReallyLongAndReadersAreGreatButHavingOneWriterMakesSense))
+				//stdinChannel <- ThisisReallyLongAndReadersAreGreatButHavingOneWriterMakesSense
 
 				// Write socket data to stdin:
-				fmt.Printf("converted: %v\n", converted)
-
-				// io.WriteString wants to defer the closer so we dereference stdin:
+				//	io.WriteString wants to defer the closer so we dereference stdin:
 				var dereferenceForCloseMethod io.WriteCloser = *stdin
 				go func() {
 					// Write channel data to shell stdin:
