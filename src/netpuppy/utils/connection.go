@@ -52,7 +52,7 @@ type Socket interface {
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
 	Close() error
-	SetDeadline(int) error
+	SetSocketReadDeadline(int) error
 }
 
 type ConnectionGetter interface {
@@ -99,7 +99,7 @@ func (i TestSocket) Close() error {
 	return testCloseErr
 }
 
-func (i TestSocket) SetDeadline(miliseconds int) error {
+func (i TestSocket) SetSocketReadDeadline(miliseconds int) error {
 	var testDeadlineErr error
 	return testDeadlineErr
 }
@@ -152,7 +152,9 @@ func (s RealSocket) Read() ([]byte, error) {
 				return fullData, customTimeoutError
 			}
 
-			return buffer, customTimeoutError
+			// Have to set read deadline again (or connection will close):
+			s.SetSocketReadDeadline(300)
+			return []byte{}, customTimeoutError
 		}
 	}
 
@@ -188,7 +190,7 @@ func (s RealSocket) Close() error {
 }
 
 // Set read deadline on ACTUAL socket:
-func (s RealSocket) SetDeadline(miliseconds int) error {
+func (s RealSocket) SetSocketReadDeadline(miliseconds int) error {
 	timeout := time.Duration(miliseconds) * time.Millisecond
 	err := s.realSocket.SetReadDeadline(time.Now().Add(timeout))
 

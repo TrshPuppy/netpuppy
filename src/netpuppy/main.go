@@ -35,7 +35,7 @@ func readFromUserShell(shellUserChannel chan<- string, stdout *io.ReadCloser, st
 			}
 			// If data: change to string & put into channel:
 
-			fmt.Printf("stdout go routine data from channel: %s\n", string(outData))
+			//fmt.Printf("stdout go routine data from channel: %s\n", string(outData))
 			cData := string(outData)
 			shellUserChannel <- cData
 		}
@@ -98,11 +98,14 @@ func readFromSocket(socketChannel chan<- []byte, connection utils.Socket) {
 		if err != nil {
 			// Check for timeout error on conneciton:
 			if err.Error() == "custom timeout error" {
+				//fmt.Printf("data read from socket: %v\n", dataReadFromSocket)
 				// If the socket timed out, AND data returned, put the data in the channel
 				if len(dataReadFromSocket) > 0 {
 					socketChannel <- dataReadFromSocket
 				}
 
+				continue
+			} else if err.Error() == "EOF" {
 				continue
 			} else {
 				log.Fatalf("Error reading from socket: %v\n", err.Error())
@@ -193,7 +196,7 @@ func runApp(c utils.ConnectionGetter) {
 	}
 
 	// Set read deadline on socket (timeout after x time while trying to read socket):
-	socket.SetDeadline(300)
+	socket.SetSocketReadDeadline(300)
 	fmt.Printf("Address of socket in main.go: %v\n", socket)
 
 	// Connect socket connection to peer
