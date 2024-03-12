@@ -203,7 +203,7 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string)
 	var clientConnection net.Conn
 	var err error
 	var remoteHost string = fmt.Sprintf("%v:%v", address, rPort)
-	var clientSocket RealSocket
+	//var clientSocket RealSocket
 	var pointerToRealSocket *RealSocket
 
 	// Get client connection:
@@ -215,9 +215,10 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string)
 	}
 
 	// Attach connection to RealSocket & get the pointer to the instance:
-	clientSocket = RealSocket{realSocket: clientConnection}
-	pointerToRealSocket = &clientSocket
+	pointerToRealSocket = &RealSocket{realSocket: clientConnection}
+	//pointerToRealSocket = &clientSocket
 
+	fmt.Printf("Address to socket in connection.go = %p\n", pointerToRealSocket)
 	return pointerToRealSocket
 }
 
@@ -226,7 +227,7 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
-	var listenerSocket RealSocket
+	//var listenerSocket RealSocket
 	var pointerToRealSocket *RealSocket
 
 	// Listener created first:
@@ -249,9 +250,9 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	}
 
 	// Attach the connection to the RealSocket struct & return the pointer to the instance:
-	listenerSocket = RealSocket{realSocket: listenerConnection}
-	pointerToRealSocket = &listenerSocket
+	pointerToRealSocket = &RealSocket{realSocket: listenerConnection}
+	//pointerToRealSocket = &listenerSocket
 
-	fmt.Printf("socket address in peer.go: %v\n", pointerToRealSocket)
+	fmt.Printf("socket address in connection.go: %p\n", pointerToRealSocket)
 	return pointerToRealSocket
 }

