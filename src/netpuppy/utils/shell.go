@@ -58,7 +58,7 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 	}
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	bShell = RealShell{realShell: exec.Command(bashCopPath, "-i")}
+	bShell = RealShell{realShell: exec.Command(bashCopPath, "--norc")}
 
 	// Get the pointer to the shell process and & return it:
 	pointerToShell = &bShell
