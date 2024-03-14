@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -15,254 +14,6 @@ import (
 	// NetPuppy modules:
 	"netpuppy/utils"
 )
-
-// func readFromUserShell(shellUserChannel chan<- string, stdout *io.ReadCloser, stderr *io.ReadCloser) {
-// 	/*
-// 		Depending on if the shell process is true on the peer struct,
-// 		we have 3 go routines: 2 for if the shell is true (readStdout, readStderr)
-// 		and one if it's false (readUserInput)
-
-// 		The go routines put data they get from their sources into the channel.
-// 		Think of the user and the shell as being treated the same by the peer...
-// 	*/
-
-// 	// Read data being outputed by the shell process (shell stdout):
-// 	readForStdout := func(stdout *io.ReadCloser, shellUserChannel chan<- string) {
-// 		// For loop checks for data in shell stdout:
-// 		var readBuffer []byte = make([]byte, 1024)
-// 		var numBytesRead int = 0
-// 		var fullData []byte
-// 		var dereferencedStdout io.ReadCloser = *stdout
-
-// 		fmt.Printf("Stdout address in go routine = %p\n", stdout)
-
-// 		for {
-// 			// Get reader out of ReadCloser interface w/ type assertion:
-// 			reader := dereferencedStdout.(io.Reader)
-
-// 			numBytesRead, err := io.ReadFull(reader, readBuffer)
-// 			if err == nil {
-// 				fmt.Printf("Data read from stdout: %v\n", readBuffer)
-// 				// Set chunk to data read:
-// 				dataChunk := readBuffer[:numBytesRead]
-
-// 				// Add chunk to whole
-// 				fullData = append(fullData, dataChunk...)
-
-// 				// Reset buffer:
-// 				readBuffer = make([]byte, 1024)
-// 				continue
-// 			} else {
-// 				// Check for EOF & ErrUnexpectedEOF from io package (want to continue)
-// 				//....... (type assertion time)
-// 				if errors.Is(err, io.EOF) {
-// 					// Make sure there is something read from stderr before putting in channel:
-// 					if len(fullData) > 0 {
-// 						fmt.Printf("Sending into channel from stdout: %s\n", string(fullData))
-// 						shellUserChannel <- string(fullData)
-
-// 						// Reset fullData & continue:
-// 						fullData = []byte{}
-// 					}
-// 					continue
-// 				} else if errors.Is(err, io.ErrUnexpectedEOF) {
-// 					// There is data in numBytesRead, add to data chunk
-// 					dataChunk := readBuffer[:numBytesRead]
-
-// 					// Add chunk to whole:
-// 					fullData = append(fullData, dataChunk...)
-
-// 					// Send down channel:
-// 					fmt.Printf("Sending into channel from stdout: %s\n", string(fullData))
-// 					shellUserChannel <- string(fullData)
-
-// 					// Reset:
-// 					fullData = []byte{}
-
-// 					fmt.Println("Error is unexpected EOF (stdout)")
-// 					continue
-// 				} else {
-// 					log.Fatalf("Error reading from Stdout: %v\n", err)
-// 					break
-// 				}
-// 			}
-// 			continue
-// 		}
-// 		fmt.Println(string(numBytesRead))
-// 		// // Wait? (may need Cmd.Wait() here)
-// 		// close channel? GRACEFULLY>!>!
-
-// 		// for {
-// 		// 	fmt.Printf("Go routin stdout for loop\n")
-// 		// 	outData, err := io.ReadAll(*stdout) // Dereference the stdout pointer to get the actual value @ the address in memory
-// 		// 	if err != nil {
-// 		// 		fmt.Printf("Error reading data from stdout pipe: %v\n", err)
-// 		// 		os.Stderr.WriteString(err.Error() + "\n")
-// 		// 		os.Exit(1)
-// 		// 	}
-// 		// 	// If data: change to string & put into channel:
-// 		// 	if len(outData) > 0 {
-// 		// 		fmt.Printf("stdout: %s\n", string(outData))
-// 		// 		cData := string(outData)
-// 		// 		shellUserChannel <- cData
-// 		// 	}
-// 		// }
-// 		// // Wait? (may need Cmd.Wait() here)
-// 	}
-
-// 	// Read ERROR data being outputed by the shell process (stderr):
-// 	readForStderr := func(stderr *io.ReadCloser, shellUserChannel chan<- string) {
-// 		// For loop checks for data in shell stderr:
-// 		var readBuffer []byte = make([]byte, 1024)
-// 		var numBytesRead int = 0
-// 		var fullData []byte
-// 		var dereferencedStderr io.ReadCloser = *stderr
-
-// 		fmt.Printf("stderr address in go routine = %p\n", stderr)
-
-// 		for {
-// 			// Get reader out of ReadCloser interface w/ type assertion:
-// 			reader := dereferencedStderr.(io.Reader)
-
-// 			numBytesRead, err := io.ReadFull(reader, readBuffer)
-// 			//numBytesRead, err := io.ReadFull(dereferencedStderr, readBuffer)
-// 			if err == nil {
-// 				fmt.Printf("Data red from stderr: %v\n", readBuffer)
-// 				// Set chunk to data read:
-// 				dataChunk := readBuffer[:numBytesRead]
-
-// 				// Add chunk to whole
-// 				fullData = append(fullData, dataChunk...)
-
-// 				// Reset buffer:
-// 				readBuffer = make([]byte, 1024)
-// 				continue
-// 			} else {
-// 				// Check for EOF & ErrUnexpectedEOF from io package (want to continue)
-// 				if errors.Is(err, io.EOF) {
-// 					// Make sure there is something read from stderr before putting in channel:
-// 					if len(fullData) > 0 {
-// 						fmt.Printf("Sending into channel from stderr: %s\n", string(fullData))
-// 						shellUserChannel <- string(fullData)
-
-// 						// Reset fullData & continue:
-// 						fullData = []byte{}
-// 					}
-// 					continue
-// 				} else if errors.Is(err, io.ErrUnexpectedEOF) {
-// 					// There is data in numBytesRead, add to data chunk
-// 					dataChunk := readBuffer[:numBytesRead]
-
-// 					// Add chunk to whole:
-// 					fullData = append(fullData, dataChunk...)
-
-// 					// Send down channel:
-// 					fmt.Printf("Sending into channel from stderr: %s\n", string(fullData))
-// 					shellUserChannel <- string(fullData)
-
-// 					// Reset:
-// 					fullData = []byte{}
-
-// 					fmt.Println("Error is unexpected EOF (stderr)")
-// 					continue
-// 				} else {
-// 					log.Fatalf("Error reading from Stderr: %v\n", err)
-// 					break
-// 				}
-// 			}
-// 			continue
-// 		}
-// 		fmt.Println(string(numBytesRead))
-// 		// // Wait? (may need Cmd.Wait() here)
-// 		// close channel? GRACEFULLY>!>!
-// 	}
-
-// 	// If there's no shell (or we're the offense peer), get data from the user instead:
-// 	readForUserInput := func(reader *bufio.Reader, shellUserChannel chan<- string) {
-// 		// For loop checks for input from user:
-// 		for {
-// 			fmt.Println("For loop for reading user input.")
-// 			fmt.Print(">> ")
-// 			text, _ := reader.ReadString('\n')
-
-// 			// If there is input, put into channel:
-// 			if len(text) > 0 {
-// 				fmt.Printf("user: %s\n", string(text))
-// 				shellUserChannel <- text
-// 			}
-// 		}
-// 	}
-
-// 	// If the stdout param is not nil, that means we have a shell process AND we're the connect-back peer:
-// 	if stdout != nil {
-// 		fmt.Printf("stdout/ stderr address in readFromUSerShell = %p/%p\n", stdout, stderr)
-// 		// Start separate go routines for capturing data from the shell:
-// 		go readForStderr(stderr, shellUserChannel)
-// 		go readForStdout(stdout, shellUserChannel)
-
-// 	} else { // if shellProcess is nil, then just start go routine for getting user input:
-// 		var reader *bufio.Reader = bufio.NewReader(os.Stdin)
-// 		go readForUserInput(reader, shellUserChannel)
-// 	}
-// }
-
-// func readFromSocket(socketChannel chan<- []byte, connection utils.Socket) {
-// 	/*
-// 		The socketChannel is for gathering & channeling data
-// 		COMING IN from the socket to this peer. NP is reading the socket
-// 		here and putting the data in that channel.
-// 	*/
-
-// 	fmt.Printf("Socket address in go routine = %p\n", connection)
-// 	// Read from connection socket:
-// 	for {
-// 		//fmt.Println("For loop for reading from socket.")
-// 		dataReadFromSocket, err := connection.Read()
-// 		if err != nil {
-// 			// Check for timeout error on conneciton:
-// 			if err.Error() == "custom timeout error" {
-// 				// If the socket timed out, AND data returned, put the data in the channel
-// 				if len(dataReadFromSocket) > 0 {
-
-// 					fmt.Printf("data read from socket: %s\n", string(dataReadFromSocket))
-// 					//fmt.Printf("putting into socketChannel: %s\n", string(dataReadFromSocket))
-// 					socketChannel <- dataReadFromSocket
-// 				}
-
-// 				continue
-// 			} else if err.Error() == "EOF" {
-// 				continue
-// 			} else {
-// 				log.Fatalf("Error reading from socket: %v\n", err.Error())
-// 			}
-// 		}
-
-// 		// fmt.Printf("For loop\n")
-// 		// dataChunk, err := connection.Read()
-
-// 		// fmt.Printf("Data chunk in readFromSocket: %s\n", string(dataChunk))
-// 		// if err != nil {
-// 		// 	// ERROR HERE: if there si nothing in the socket, we put things in the channel?
-// 		// 	if err == io.EOF && len(dataChunk) > 0 {
-// 		// 		fmt.Printf("Bytes from socket: %v\n", dataWhole)
-// 		// 		socketChannel <- dataWhole
-// 		// 		dataWhole = []byte{}
-// 		// 		continue
-// 		// 	}
-// 		// 	fmt.Printf("Error reading from socket: %v\n", err)
-// 		// 	os.Stderr.WriteString(err.Error())
-// 		// 	os.Exit(1)
-// 		// 	return
-// 		// }
-// 		// dataWhole = append(dataWhole, dataChunk...)
-
-// 		// // If data is not empty:
-// 		// // if len(dataBytes) > 0 {
-// 		// // 	fmt.Printf("Bytes from socket: %v\n", dataBytes)
-// 		// // 	socketChannel <- dataBytes
-// 		// // }
-// 	}
-// }
 
 func runApp(c utils.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
@@ -294,10 +45,7 @@ func runApp(c utils.ConnectionGetter) {
 	if deadlineErr != nil {
 		log.Fatalf("Error setting socket deadline: %v\n", deadlineErr)
 	}
-	deadlineErr := socket.SetSocketReadDeadline(300)
-	if deadlineErr != nil {
-		log.Fatalf("Error setting socket deadline: %v\n", deadlineErr)
-	}
+
 	fmt.Printf("Address of socket in main.go: %p\n", socket)
 
 	// Connect socket connection to peer
@@ -329,8 +77,6 @@ func runApp(c utils.ConnectionGetter) {
 	var stdout *io.ReadCloser
 	var stderr *io.ReadCloser
 
-	channel1 := make(chan string)
-	channel2 := make(chan string)
 	channel1 := make(chan string)
 	channel2 := make(chan string)
 
@@ -403,7 +149,6 @@ func runApp(c utils.ConnectionGetter) {
 				}
 				channel1 <- "2"
 			}()
-
 		}
 
 		pipeShellOutToSocketOutgoing := func(socket utils.Socket, stdout *io.ReadCloser, stderr *io.ReadCloser, c2 chan<- string) {
@@ -660,9 +405,25 @@ func runApp(c utils.ConnectionGetter) {
 					fmt.Printf("Error in writing to stdout (main.go): %v\n", err)
 					os.Stderr.WriteString(" " + err.Error() + "\n")
 				}
-			}
+			}()
+		}
+
+		// socket incoming should be printed to user
+		//....... Create reader for user input:
+		userReader := bufio.NewReader(os.Stdin)
+
+		// user input should be piped to socket outgoing
+		go pipeUserInputToSocketOutgoing(thisPeer.Connection, userReader, channel1)
+		go pipeSocketIncomingToUserPrint(thisPeer.Connection, channel2)
+	}
+
+	for {
+		select {
+		case c1 := <-channel1:
+			fmt.Printf("channel 1: %v\n", c1)
+		case c2 := <-channel2:
+			fmt.Printf("channel 2: %v\n", c2)
 		default:
-			//fmt.Printf("timeout")
 			time.Sleep(300 * time.Millisecond)
 		}
 	}
