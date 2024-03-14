@@ -40,6 +40,7 @@ package utils
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"time"
@@ -159,19 +160,6 @@ func (s RealSocket) Read() ([]byte, error) {
 	}
 
 	return buffer[:numberOfBytesSent], err
-
-	// Create io pipe and write to it, return pointer to reader?
-	// pipeReader, pipeWriter := io.Pipe()
-
-	// dataBytes, err :=
-
-	// var dataBytes []byte
-	// var err error
-
-	// dataBytes, err = bufio.NewReader(s.realSocket).ReadBytes('\n')
-	// fmt.Printf("data read in socket method: %s\n", string(dataBytes))
-
-	// return dataBytes, err
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
@@ -203,20 +191,16 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string)
 	var clientConnection net.Conn
 	var err error
 	var remoteHost string = fmt.Sprintf("%v:%v", address, rPort)
-	//var clientSocket RealSocket
 	var pointerToRealSocket *RealSocket
 
 	// Get client connection:
 	clientConnection, err = net.Dial("tcp", remoteHost)
 	if err != nil {
-		fmt.Printf("Error creating client connection (connection.go): %v\n", err)
-		os.Stderr.WriteString(" " + err.Error() + "\n")
-		os.Exit(1)
+		log.Fatalf("Error creating client connection (connection.go): %v\n", err)
 	}
 
 	// Attach connection to RealSocket & get the pointer to the instance:
 	pointerToRealSocket = &RealSocket{realSocket: clientConnection}
-	//pointerToRealSocket = &clientSocket
 
 	fmt.Printf("Address to socket in connection.go = %p\n", pointerToRealSocket)
 	return pointerToRealSocket
@@ -227,7 +211,6 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
-	//var listenerSocket RealSocket
 	var pointerToRealSocket *RealSocket
 
 	// Listener created first:
@@ -251,7 +234,6 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 
 	// Attach the connection to the RealSocket struct & return the pointer to the instance:
 	pointerToRealSocket = &RealSocket{realSocket: listenerConnection}
-	//pointerToRealSocket = &listenerSocket
 
 	fmt.Printf("socket address in connection.go: %p\n", pointerToRealSocket)
 	return pointerToRealSocket
