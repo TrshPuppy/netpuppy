@@ -23,8 +23,6 @@ func runApp(c utils.ConnectionGetter) {
 	fmt.Printf("%s", utils.Banner())
 
 	// Create peer instance based on user input:
-	var socket utils.Socket
-	// POINTER: thisPeer is a pointer to the actual instance of Peer returned by CreatePeer:
 	var thisPeer *utils.Peer = utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
 	fmt.Printf("Address of peer in main.go = %p\n", thisPeer)
 
@@ -33,6 +31,7 @@ func runApp(c utils.ConnectionGetter) {
 	fmt.Println(updateUserBanner)
 
 	// Make connection:
+	var socket utils.Socket
 	if thisPeer.ConnectionType == "offense" {
 		socket = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
 		//fmt.Printf("Socket address in main.go = %p\n", socket)
@@ -152,7 +151,6 @@ func runApp(c utils.ConnectionGetter) {
 		}
 
 		pipeShellOutToSocketOutgoing := func(socket utils.Socket, stdout *io.ReadCloser, stderr *io.ReadCloser, c2 chan<- string) {
-
 			fmt.Println("Go routine pipeStdoutToSocket started")
 			// Make pipe:
 			stdoutStreamReader, stdoutStreamWriter := io.Pipe()
@@ -191,7 +189,11 @@ func runApp(c utils.ConnectionGetter) {
 								if err != nil {
 									log.Fatalf("Error writing stdout data to pipe: %v\n", err)
 								}
+
+								// Reset:
+								fullData = []byte{}
 							}
+							//continue
 							break
 						} else if errors.Is(err, io.ErrUnexpectedEOF) {
 							// There is partial data in the buffer, add to fullData:
@@ -241,8 +243,11 @@ func runApp(c utils.ConnectionGetter) {
 								if err != nil {
 									log.Fatalf("Error writing stderr data to pipe: %v\n", err)
 								}
+
+								// Reset
+								fullData = []byte{}
 							}
-							break
+							continue
 						} else if errors.Is(err, io.ErrUnexpectedEOF) {
 							// There is data in numBytesRead, add to data chunk
 							// Add chunk to whole:
@@ -259,7 +264,6 @@ func runApp(c utils.ConnectionGetter) {
 								// Reset:
 								fullData = []byte{}
 							}
-
 							fmt.Println("Error is unexpected EOF (stderr)")
 							continue
 						} else {
@@ -362,7 +366,6 @@ func runApp(c utils.ConnectionGetter) {
 				}
 				c3 <- "user input written to socket"
 			}()
-
 		}
 
 		pipeSocketIncomingToUserPrint := func(socket utils.Socket, c4 chan<- string) {
@@ -405,9 +408,14 @@ func runApp(c utils.ConnectionGetter) {
 					fmt.Printf("Error in writing to stdout (main.go): %v\n", err)
 					os.Stderr.WriteString(" " + err.Error() + "\n")
 				}
+
+				// Print buffer to user:
+				if buffer.Len() > 0 {
+					os.Stdout.Write(buffer.Bytes())
+				}
+				c4 <- "data from socket printed to user"
 			}()
 		}
-
 		// socket incoming should be printed to user
 		//....... Create reader for user input:
 		userReader := bufio.NewReader(os.Stdin)
