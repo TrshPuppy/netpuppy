@@ -28,7 +28,7 @@ debug
 # vendor/
 
 # Go workspace file
-go.work
+#go.work
 
 # Python-Specific:
 # Byte-compiled / optimized / DLL files
