@@ -116,49 +116,12 @@ type RealConnectionGetter struct {
 
 // Read from the ACTUAL socket on RealSocket struct:
 func (s RealSocket) Read() ([]byte, error) {
-	// Buffer tells Read() to read 1024 bytes from socket
 	var buffer []byte = make([]byte, 1024)
 	var numberOfBytesSent int = 0
-	var fullData []byte
 	var err error
 
-	// This for loop should capture all the data currently in the socket (by chunking it):
-	for {
-		numberOfBytesSent, err = s.realSocket.Read(buffer)
-		if err != nil {
-			break
-		}
-
-		// If no error (from timeout or otherwise), add buffer to chunk
-		dataChunk := buffer[:numberOfBytesSent]
-
-		// Add chunk to whole
-		fullData = append(fullData, dataChunk...)
-
-		// Reset buffer:
-		buffer = make([]byte, 1024)
-	}
-
-	// If an error broke the for loop, we either received all data OR
-	//....... hit the timeout set w/ net.Conn.SetReadDeadline
-	if err != nil {
-		// Check for timeout error using net pkg:
-		//....... (type assertion checks if 'err' uses net.Error interface)
-		//....... (( isANetError will be true if it is using the net.Error interface))
-		netErr, isANetError := err.(net.Error)
-		if isANetError && netErr.Timeout() {
-			// Create our own timeout error which is easier to check in main:
-			var customTimeoutError error = fmt.Errorf("custom timeout error")
-			if len(fullData) > 0 {
-				return fullData, customTimeoutError
-			}
-
-			// Have to set read deadline again (or connection will close):
-			s.SetSocketReadDeadline(300)
-			return []byte{}, customTimeoutError
-		}
-	}
-
+	// 'numberOfBytes' will tell us how many bytes were read from socket, use to index into buffer:
+	numberOfBytesSent, err = s.realSocket.Read(buffer)
 	return buffer[:numberOfBytesSent], err
 }
 

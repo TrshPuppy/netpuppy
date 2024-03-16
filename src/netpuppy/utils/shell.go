@@ -66,8 +66,18 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() BashShell {
 
 // This essentially wraps the actual exec.Cmd.Start() method:
 func (s *RealShell) StartShell() error {
+	fmt.Printf("starting shell\n")
 	// Start the shell:
 	var erR error = s.realShell.Start()
+	if erR == nil {
+		// If no error, call wait (which is blocking):
+		go func() {
+			fmt.Println("calling wait")
+			erR = s.realShell.Wait()
+			fmt.Println("done with wait")
+
+		}()
+	}
 
 	return erR
 }
