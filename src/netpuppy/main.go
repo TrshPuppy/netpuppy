@@ -102,10 +102,9 @@ func runApp(c utils.ConnectionGetter) {
 		fmt.Printf("Address of shell process after start (main.go) = %p\n", thisPeer.ShellProcess)
 
 		// Go routines for reading:
-		readStdout := func(stdout io.ReadCloser, c chan<- []byte) {
+		readStdout := func(stdout *io.ReadCloser, c chan<- []byte) {
 			// Dereference stdout and get the reader from the interface using type assertion:
-			//deref := *stdout
-			stdoutReader := stdout.(io.Reader)
+			deref := *stdout
 
 			// Define some vars:
 			var fullData []byte
@@ -113,40 +112,46 @@ func runApp(c utils.ConnectionGetter) {
 			for {
 				buffer := make([]byte, 1024)
 
-				_, err := io.ReadFull(stdoutReader, buffer)
+				bytesRead, err := io.ReadFull(deref, buffer)
 				if err == nil {
-					fullData = append(fullData, buffer...)
+					chunk := buffer[:bytesRead]
+					fullData = append(fullData, chunk...)
+
 					continue
 				} else {
 					// Check for EOF & ErrUnexpectedEOF from io package (want to continue)
 					if errors.Is(err, io.EOF) {
-						fmt.Printf("Sending into pipe from stdout: %s\n", string(fullData))
+						if len(fullData) > 0 {
+							fmt.Printf("Sending into pipe from stdout: %s\n", string(fullData))
+							c <- fullData
 
-						c <- fullData
-
-						// Reset:
-						fullData = []byte{}
+							// Reset:
+							fullData = []byte{}
+						}
 					} else if errors.Is(err, io.ErrUnexpectedEOF) {
 						// There is partial data in the buffer, add to fullData:
-						fullData = append(fullData, buffer...)
+						chunk := buffer[:bytesRead]
+						fullData = append(fullData, chunk...)
 
-						c <- fullData
+						if len(fullData) > 0 {
+							c <- fullData
 
-						// Reset:
-						fullData = []byte{}
+							// Reset:
+							fullData = []byte{}
+						}
 
 						fmt.Println("Error is unexpected EOF (stdout)")
 					} else {
 						log.Fatalf("Error reading from Stdout: %v\n", err)
 					}
+					continue
 				}
 			}
 		}
 
-		readStderr := func(stderr io.ReadCloser, c chan<- []byte) {
+		readStderr := func(stderr *io.ReadCloser, c chan<- []byte) {
 			// Dereference stderr and get the reader from the interface using type assertion:
-			//deref := *stderr
-			stderrReader := stderr.(io.Reader)
+			deref := *stderr
 
 			// Define some vars:
 			var fullData []byte
@@ -154,27 +159,33 @@ func runApp(c utils.ConnectionGetter) {
 			for {
 				buffer := make([]byte, 1024)
 
-				_, err := io.ReadFull(stderrReader, buffer)
+				bytesRead, err := io.ReadFull(deref, buffer)
 				if err == nil {
-					fullData = append(fullData, buffer...)
+					chunk := buffer[:bytesRead]
+					fullData = append(fullData, chunk...)
+
 					continue
 				} else {
 					// Check for EOF & ErrUnexpectedEOF from io package (want to continue)
 					if errors.Is(err, io.EOF) {
-						fmt.Printf("Sending into pipe from stderr: %s\n", string(fullData))
+						if len(fullData) > 0 {
+							fmt.Printf("Sending into pipe from stderr: %s\n", string(fullData))
+							c <- fullData
 
-						c <- fullData
-
-						// Reset:
-						fullData = []byte{}
+							// Reset:
+							fullData = []byte{}
+						}
 					} else if errors.Is(err, io.ErrUnexpectedEOF) {
 						// There is partial data in the buffer, add to fullData:
-						fullData = append(fullData, buffer...)
+						chunk := buffer[:bytesRead]
+						fullData = append(fullData, chunk...)
 
-						c <- fullData
+						if len(fullData) > 0 {
+							c <- fullData
 
-						// Reset:
-						fullData = []byte{}
+							// Reset:
+							fullData = []byte{}
+						}
 
 						fmt.Println("Error is unexpected EOF (stderr)")
 					} else {
@@ -206,7 +217,6 @@ func runApp(c utils.ConnectionGetter) {
 						socket.SetSocketReadDeadline(300)
 						continue
 					} else if errors.Is(err, io.EOF) {
-						// fmt.Printf("socketError is EOF")
 						continue
 					} else {
 						log.Fatalf("Error reading data from socket: %v\n", err)
@@ -216,13 +226,17 @@ func runApp(c utils.ConnectionGetter) {
 		}
 
 		// Go routines for writing:
-		writeToStdin := func(data []byte, stdin io.WriteCloser) {
+		writeToStdin := func(data []byte, stdin *io.WriteCloser) {
+			fmt.Printf("address of stdin is: %p\n", stdin)
 			// Make sure the data actually has length:
 			if len(data) > 0 {
-				fmt.Printf("lenght of data is %v\n", len(data))
-				writer := stdin.(io.Writer)
+				deref := *stdin
 
-				_, erR := io.WriteString(writer, string(data))
+				// Trim white space:
+				trimmed := bytes.TrimSpace(data)
+
+				fmt.Printf("lenght of data is %v\n", len(trimmed))
+				_, erR := io.WriteString(deref, string(trimmed))
 				if erR != nil {
 					log.Fatalf("Error writing buffer to shell stdin: %v\n", erR)
 				}
@@ -233,9 +247,13 @@ func runApp(c utils.ConnectionGetter) {
 		writeToSocket := func(dataToWrite []byte, socket utils.Socket) {
 			// Check length so we can clear channel, but not send blank data:
 			if len(dataToWrite) > 0 {
-				_, erR := socket.Write(dataToWrite)
+				bytesWritten, erR := socket.Write(dataToWrite)
 				if erR != nil {
 					log.Fatalf("Error writing user input buffer to socket: %v\n", erR)
+				}
+
+				if bytesWritten <= 0 {
+					fmt.Printf("No bytes written to socket?\n")
 				}
 			}
 			return
@@ -252,8 +270,8 @@ func runApp(c utils.ConnectionGetter) {
 		}()
 
 		// Start go routines to read from shell and socket:
-		go readStdout(derefStdout, readStdoutChan)
-		go readStderr(derefStdout, readStderrChan)
+		go readStdout(stdout, readStdoutChan)
+		go readStderr(stderr, readStderrChan)
 		go readSocket(socket, socketDataChan)
 
 		for {
@@ -266,7 +284,7 @@ func runApp(c utils.ConnectionGetter) {
 				go writeToSocket(dataFromStderr, socket)
 			case dataFromSocket := <-socketDataChan:
 				fmt.Printf("data from socket: %s\n", string(dataFromSocket))
-				go writeToStdin(dataFromSocket, derefStdin)
+				go writeToStdin(dataFromSocket, stdin)
 			default:
 				// Timeout
 				time.Sleep(300 * time.Millisecond)
@@ -308,7 +326,6 @@ func runApp(c utils.ConnectionGetter) {
 						socket.SetSocketReadDeadline(300)
 						continue
 					} else if errors.Is(err, io.EOF) {
-						// fmt.Printf("socketError is EOF")
 						continue
 					} else {
 						log.Fatalf("Error reading data from socket: %v\n", err)
@@ -322,9 +339,13 @@ func runApp(c utils.ConnectionGetter) {
 			// Check length so we can clear channel, but not send blank data:
 			if len(dataToWrite) > 0 {
 				fmt.Printf("writing to socket\n")
-				_, erR := socket.Write([]byte(dataToWrite))
+				bytesWritten, erR := socket.Write([]byte(dataToWrite))
 				if erR != nil {
 					log.Fatalf("Error writing user input buffer to socket: %v\n", erR)
+				}
+
+				if bytesWritten <= 0 {
+					fmt.Printf("No bytes written to socket?\n")
 				}
 			}
 			return

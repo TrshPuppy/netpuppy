@@ -70,6 +70,7 @@ func (s *RealShell) StartShell() error {
 	// Start the shell:
 	var erR error = s.realShell.Start()
 	if erR == nil {
+		fmt.Printf("Cmd = %v\n", s.realShell.Process)
 		// If no error, call wait (which is blocking):
 		go func() {
 			fmt.Println("calling wait")
