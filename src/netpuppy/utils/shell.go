@@ -82,7 +82,6 @@ func (s *RealShell) StartShell(socketPointer *RealSocket) error {
 	// Start the shell:
 	var erR error = s.RrealShell.Start()
 	if erR == nil {
-		//fmt.Printf("Cmd = %v\n", s.realShell.Process)
 		// If no error, call wait (which is blocking):
 		go func() {
 			fmt.Println("calling wait")
@@ -109,7 +108,7 @@ func (s *RealShell) StartShell(socketPointer *RealSocket) error {
 
 	//	For loop for stuff:
 	for {
-		//fmt.Printf("Shell PID: %v\n", s.RrealShell.Process.Pid)
+
 	}
 
 	return erR

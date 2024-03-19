@@ -43,7 +43,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"time"
 )
 
 // SHARED Code:
@@ -53,7 +52,6 @@ type Socket interface {
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
 	Close() error
-	SetSocketReadDeadline(int) error
 }
 
 type ConnectionGetter interface {
@@ -137,14 +135,6 @@ func (s RealSocket) Write(userInput []byte) (int, error) {
 // Close the ACTUAL socket:
 func (s RealSocket) Close() error {
 	var err error = s.RrealSocket.Close()
-	return err
-}
-
-// Set read deadline on ACTUAL socket:
-func (s RealSocket) SetSocketReadDeadline(miliseconds int) error {
-	timeout := time.Duration(miliseconds) * time.Millisecond
-	err := s.RrealSocket.SetReadDeadline(time.Now().Add(timeout))
-
 	return err
 }
 
