@@ -39,28 +39,25 @@
 package utils
 
 import (
-	"bufio"
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
 
 // SHARED Code:
 // ..... The Socket and ConnectionGetter interfaces are used by both real & test code:
-type Socket interface {
+type SocketInterface interface {
 	// Used to check real (RealSocket) & test (TestSocket) structs
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
 	Close() error
-	// RemoteAddr() Addr
-	//                                     TP U ARE HERE:
-	// add RemoteAddr() and LocalAddr()? (so we can update the user w/ the actual port numbers)
 }
 
 type ConnectionGetter interface {
 	// Used to check the real (RealConnectionGetter) & test (TestConnectionGetter) structs:
-	GetConnectionFromListener(int, string) Socket
-	GetConnectionFromClient(int, string) Socket
+	GetConnectionFromListener(int, string) SocketInterface
+	GetConnectionFromClient(int, string, bool) SocketInterface
 }
 
 // TEST Code:
@@ -73,12 +70,12 @@ type TestConnectionGetter struct {
 	// Leave empty
 }
 
-func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
+func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
 	testClientConnection := TestSocket{Port: rPort, Address: address}
 	return testClientConnection
 }
 
-func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) Socket {
+func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
 	testListenerConnection := TestSocket{Port: rPort, Address: address}
 	return testListenerConnection
 }
@@ -101,9 +98,14 @@ func (i TestSocket) Close() error {
 	return testCloseErr
 }
 
+func (i TestSocket) SetSocketReadDeadline(miliseconds int) error {
+	var testDeadlineErr error
+	return testDeadlineErr
+}
+
 // REAL code:
 type RealSocket struct { // This is the only code which holds the ACTUAL net connection:
-	realSocket net.Conn
+	Socket net.Conn
 }
 
 type RealConnectionGetter struct {
@@ -112,12 +114,13 @@ type RealConnectionGetter struct {
 
 // Read from the ACTUAL socket on RealSocket struct:
 func (s RealSocket) Read() ([]byte, error) {
-	var dataBytes []byte
+	var buffer []byte = make([]byte, 1024)
+	var numberOfBytesSent int = 0
 	var err error
 
-	dataBytes, err = bufio.NewReader(s.realSocket).ReadBytes('\n')
-
-	return dataBytes, err
+	// 'numberOfBytes' will tell us how many bytes were read from socket, use to index into buffer:
+	numberOfBytesSent, err = s.Socket.Read(buffer)
+	return buffer[:numberOfBytesSent], err
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
@@ -125,54 +128,51 @@ func (s RealSocket) Write(userInput []byte) (int, error) {
 	var writeSuccess int
 	var err error
 
-	writeSuccess, err = s.realSocket.Write(userInput)
+	writeSuccess, err = s.Socket.Write(userInput)
 	return writeSuccess, err
 }
 
 // Close the ACTUAL socket:
 func (s RealSocket) Close() error {
-	var err error = s.realSocket.Close()
+	var err error = s.Socket.Close()
 	return err
 }
 
 // These next 2 function create the ACTUAL socket and attach the connection to RealSocket
 // ..... Create client-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
+func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
 	var clientConnection net.Conn
 	var err error
 	var remoteHost string = fmt.Sprintf("%v:%v", address, rPort)
-	var clientSocket RealSocket
 	var pointerToRealSocket *RealSocket
 
 	// Get client connection:
 	clientConnection, err = net.Dial("tcp", remoteHost)
 	if err != nil {
-		fmt.Printf("Error creating client connection (connection.go): %v\n", err)
-		os.Stderr.WriteString(" " + err.Error() + "\n")
-		os.Exit(1)
+		if !shell {
+			log.Fatalf("Error creating client connection (connection.go): %v\n", err)
+		} else {
+			os.Exit(1)
+		}
 	}
 
 	// Attach connection to RealSocket & get the pointer to the instance:
-	clientSocket = RealSocket{realSocket: clientConnection}
-	pointerToRealSocket = &clientSocket
+	pointerToRealSocket = &RealSocket{Socket: clientConnection}
 
 	return pointerToRealSocket
 }
 
 // Creat listener-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) Socket {
+func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
-	var listenerSocket RealSocket
 	var pointerToRealSocket *RealSocket
 
 	// Listener created first:
 	listener, err1 := net.Listen("tcp", localPort)
 	if err1 != nil {
-		fmt.Printf("Error when creating listener connection: %v\n", err1)
-		os.Stderr.WriteString(" " + err1.Error() + "\n")
-		os.Exit(1)
+		log.Fatalf("Error when creating listener connection: %v\n", err1)
 	}
 
 	// This ensures the listener closes before the function returns:
@@ -181,15 +181,11 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	// Create the connection using listener.Accept():
 	listenerConnection, err = listener.Accept()
 	if err != nil {
-		fmt.Printf("Error when creating listener connection: %v\n", err)
-		os.Stderr.WriteString(" " + err.Error() + "\n")
-		os.Exit(1)
+		log.Fatalf("Error when creating listener connection: %v\n", err)
 	}
 
 	// Attach the connection to the RealSocket struct & return the pointer to the instance:
-	listenerSocket = RealSocket{realSocket: listenerConnection}
-	pointerToRealSocket = &listenerSocket
+	pointerToRealSocket = &RealSocket{Socket: listenerConnection}
 
-	fmt.Printf("socket address in peer.go: %v\n", pointerToRealSocket)
 	return pointerToRealSocket
 }

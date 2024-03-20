@@ -3,6 +3,10 @@
 netpuppy-pkg/__pycache__
 bin
 pkg
+snyk
+.dccache
+debug
+.vscode/*
 
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
@@ -24,7 +28,7 @@ pkg
 # vendor/
 
 # Go workspace file
-go.work
+#go.work
 
 # Python-Specific:
 # Byte-compiled / optimized / DLL files

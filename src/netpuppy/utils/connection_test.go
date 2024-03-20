@@ -9,11 +9,12 @@ func TestGetConnectionFromClient(t *testing.T) {
 	// Arrange
 	var rPort int = 69
 	var address string = "69.69.69.69"
+	var shell bool = true
 	//var testConnectionGetter = TestConnectionGetter{}
 	var testConnection TestConnectionGetter
 
 	// Act
-	var socket = testConnection.GetConnectionFromClient(rPort, address)
+	var socket = testConnection.GetConnectionFromClient(rPort, address, shell)
 
 	// Assert
 	testClientSocket, success := socket.(TestSocket) // Have to do type assertion to make sure TestSocket & not Socket is returned:

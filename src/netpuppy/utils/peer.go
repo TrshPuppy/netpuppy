@@ -6,10 +6,11 @@ type Peer struct {
 	RPort          int
 	LPort          int
 	Address        string
-	Connection     Socket
+	Connection     SocketInterface
 	Shell          bool
-	ShellProcess   BashShell
-	ReportTo       string
+	ShellProcess   ShellInterface
+	//ShellProcess *RealShell
+	ReportTo string
 }
 
 // Create the peer struct which will guide the rest of the logic for NetPuppy:
@@ -29,15 +30,15 @@ func CreatePeer(port int, address string, listen bool, shell bool) *Peer {
 // The Offense-type peer is the server and will listen on the any address:
 func getOffense(port int, shell bool) *Peer {
 	// Create offense-type instance of Peer:
-	var offensePeer Peer = Peer{LPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
+	var offensePeer *Peer = &Peer{LPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
 
-	return &offensePeer // POINTER: return the address of the offensePeer instance (instead of a copy)
+	return offensePeer // POINTER: return the address of the offensePeer instance (instead of a copy)
 }
 
 // The Connect-back peer is the client & will connect to the given IP address & port:
 func getConnectBack(port int, address string, shell bool) *Peer {
 	// Create connect-back instance of Peer:
-	var connectBackPeer Peer = Peer{RPort: port, Address: address, ConnectionType: "connect-back", Shell: shell}
+	var connectBackPeer *Peer = &Peer{RPort: port, Address: address, ConnectionType: "connect-back", Shell: shell}
 
-	return &connectBackPeer // POINTER: return the address of the connectBackPeer instance (instead of copy)
+	return connectBackPeer // POINTER: return the address of the connectBackPeer instance (instead of copy)
 }
