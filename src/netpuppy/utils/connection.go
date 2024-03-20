@@ -57,7 +57,7 @@ type Socket interface {
 type ConnectionGetter interface {
 	// Used to check the real (RealConnectionGetter) & test (TestConnectionGetter) structs:
 	GetConnectionFromListener(int, string) Socket
-	GetConnectionFromClient(int, string) Socket
+	GetConnectionFromClient(int, string, bool) Socket
 }
 
 // TEST Code:
@@ -70,7 +70,7 @@ type TestConnectionGetter struct {
 	// Leave empty
 }
 
-func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
+func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) Socket {
 	testClientConnection := TestSocket{Port: rPort, Address: address}
 	return testClientConnection
 }
@@ -140,7 +140,7 @@ func (s RealSocket) Close() error {
 
 // These next 2 function create the ACTUAL socket and attach the connection to RealSocket
 // ..... Create client-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string) Socket {
+func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) Socket {
 	var clientConnection net.Conn
 	var err error
 	var remoteHost string = fmt.Sprintf("%v:%v", address, rPort)
@@ -149,13 +149,16 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string)
 	// Get client connection:
 	clientConnection, err = net.Dial("tcp", remoteHost)
 	if err != nil {
-		log.Fatalf("Error creating client connection (connection.go): %v\n", err)
+		if !shell {
+			log.Fatalf("Error creating client connection (connection.go): %v\n", err)
+		} else {
+			os.Exit(1)
+		}
 	}
 
 	// Attach connection to RealSocket & get the pointer to the instance:
 	pointerToRealSocket = &RealSocket{RrealSocket: clientConnection}
 
-	fmt.Printf("Address to socket in connection.go = %p\n", pointerToRealSocket)
 	return pointerToRealSocket
 }
 
@@ -169,9 +172,7 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	// Listener created first:
 	listener, err1 := net.Listen("tcp", localPort)
 	if err1 != nil {
-		fmt.Printf("Error when creating listener connection: %v\n", err1)
-		os.Stderr.WriteString(" " + err1.Error() + "\n")
-		os.Exit(1)
+		log.Fatalf("Error when creating listener connection: %v\n", err1)
 	}
 
 	// This ensures the listener closes before the function returns:
@@ -180,14 +181,11 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	// Create the connection using listener.Accept():
 	listenerConnection, err = listener.Accept()
 	if err != nil {
-		fmt.Printf("Error when creating listener connection: %v\n", err)
-		os.Stderr.WriteString(" " + err.Error() + "\n")
-		os.Exit(1)
+		log.Fatalf("Error when creating listener connection: %v\n", err)
 	}
 
 	// Attach the connection to the RealSocket struct & return the pointer to the instance:
 	pointerToRealSocket = &RealSocket{RrealSocket: listenerConnection}
 
-	fmt.Printf("socket address in connection.go: %p\n", pointerToRealSocket)
 	return pointerToRealSocket
 }

@@ -1,9 +1,5 @@
 package utils
 
-import (
-	"fmt"
-)
-
 // Depending on user flags given, create this peer's type:
 type Peer struct {
 	ConnectionType string
@@ -28,7 +24,6 @@ func CreatePeer(port int, address string, listen bool, shell bool) *Peer {
 		thisPeer = getConnectBack(port, address, shell)
 	}
 
-	fmt.Printf("Address of peer in peer.go %p\n", thisPeer)
 	return thisPeer
 }
 
@@ -37,7 +32,6 @@ func getOffense(port int, shell bool) *Peer {
 	// Create offense-type instance of Peer:
 	var offensePeer *Peer = &Peer{LPort: port, Address: "0.0.0.0", ConnectionType: "offense", Shell: shell}
 
-	fmt.Printf("Address of peer in get peer peer.go: %p\n", offensePeer)
 	return offensePeer // POINTER: return the address of the offensePeer instance (instead of a copy)
 }
 
@@ -46,7 +40,5 @@ func getConnectBack(port int, address string, shell bool) *Peer {
 	// Create connect-back instance of Peer:
 	var connectBackPeer *Peer = &Peer{RPort: port, Address: address, ConnectionType: "connect-back", Shell: shell}
 
-	fmt.Printf("Address of peer in getpeer peer.go: %p\n", connectBackPeer)
-	//pointerToPeer := &connectBackPeer
 	return connectBackPeer // POINTER: return the address of the connectBackPeer instance (instead of copy)
 }

