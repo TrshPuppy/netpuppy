@@ -32,29 +32,29 @@ func runApp(c utils.ConnectionGetter) {
 	}
 
 	// Make connection:
-	var socket utils.Socket
+	var socketInterface utils.SocketInterface
 	if thisPeer.ConnectionType == "offense" {
-		socket = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
+		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
 	} else {
-		socket = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
+		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
 
 	// Connect socket connection to peer
-	thisPeer.Connection = socket
+	thisPeer.Connection = socketInterface
 
 	// If shell flag is true, start shell:
-	var shell utils.BashShell
+	var shellInterface utils.ShellInterface
 	var shellErr error
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		var realShellGetter utils.RealShellGetter
-		shell, shellErr = realShellGetter.GetConnectBackInitiatedShell()
+		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
 		if shellErr != nil {
 			// Send error through socket back to listener peer.
-			socket.Write([]byte(shellErr.Error()))
+			socketInterface.Write([]byte(shellErr.Error()))
 			os.Exit(1)
 		}
 		// Connect shell to peer:
-		thisPeer.ShellProcess = shell
+		thisPeer.ShellProcess = shellInterface
 	}
 
 	// Update banner w/ missing port:
@@ -66,10 +66,10 @@ func runApp(c utils.ConnectionGetter) {
 
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Start shell:
-		socketT := socket.(*utils.RealSocket)
-		erR := thisPeer.ShellProcess.StartShell(socketT)
+		realSocket := socketInterface.(*utils.RealSocket)
+		erR := thisPeer.ShellProcess.StartShell(realSocket)
 		if erR != nil {
-			socket.Write([]byte(erR.Error()))
+			realSocket.Write([]byte(erR.Error()))
 			os.Exit(1)
 		}
 	} else {
@@ -85,10 +85,10 @@ func runApp(c utils.ConnectionGetter) {
 			}
 		}
 
-		readSocket := func(socket utils.Socket, c chan<- []byte) {
+		readSocket := func(socketInterface utils.SocketInterface, c chan<- []byte) {
 			// Read data in socket:
 			for {
-				dataReadFromSocket, err := socket.Read()
+				dataReadFromSocket, err := socketInterface.Read()
 				if len(dataReadFromSocket) > 0 {
 					c <- dataReadFromSocket
 				}
@@ -110,10 +110,10 @@ func runApp(c utils.ConnectionGetter) {
 		}
 
 		// Write go routines
-		writeToSocket := func(data string, socket utils.Socket) {
+		writeToSocket := func(data string, socketInterface utils.SocketInterface) {
 			// Check length so we can clear channel, but not send blank data:
 			if len(data) > 0 {
-				_, erR := socket.Write([]byte(data))
+				_, erR := socketInterface.Write([]byte(data))
 				if erR != nil {
 					log.Fatalf("Error writing user input buffer to socket: %v\n", erR)
 				}
@@ -141,13 +141,13 @@ func runApp(c utils.ConnectionGetter) {
 		}()
 
 		// Start go routines to read from socket and user:
-		go readSocket(socket, socketDataChan)
+		go readSocket(socketInterface, socketDataChan)
 		go readUserInput(userInputChan)
 
 		for {
 			select {
 			case dataFromUser := <-userInputChan:
-				go writeToSocket(dataFromUser, socket)
+				go writeToSocket(dataFromUser, socketInterface)
 			case dataFromSocket := <-socketDataChan:
 				go printToUser(dataFromSocket)
 			default:

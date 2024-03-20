@@ -6,9 +6,9 @@ type Peer struct {
 	RPort          int
 	LPort          int
 	Address        string
-	Connection     Socket
+	Connection     SocketInterface
 	Shell          bool
-	ShellProcess   BashShell
+	ShellProcess   ShellInterface
 	//ShellProcess *RealShell
 	ReportTo string
 }

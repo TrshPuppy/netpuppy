@@ -47,7 +47,7 @@ import (
 
 // SHARED Code:
 // ..... The Socket and ConnectionGetter interfaces are used by both real & test code:
-type Socket interface {
+type SocketInterface interface {
 	// Used to check real (RealSocket) & test (TestSocket) structs
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
@@ -56,8 +56,8 @@ type Socket interface {
 
 type ConnectionGetter interface {
 	// Used to check the real (RealConnectionGetter) & test (TestConnectionGetter) structs:
-	GetConnectionFromListener(int, string) Socket
-	GetConnectionFromClient(int, string, bool) Socket
+	GetConnectionFromListener(int, string) SocketInterface
+	GetConnectionFromClient(int, string, bool) SocketInterface
 }
 
 // TEST Code:
@@ -70,12 +70,12 @@ type TestConnectionGetter struct {
 	// Leave empty
 }
 
-func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) Socket {
+func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
 	testClientConnection := TestSocket{Port: rPort, Address: address}
 	return testClientConnection
 }
 
-func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) Socket {
+func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
 	testListenerConnection := TestSocket{Port: rPort, Address: address}
 	return testListenerConnection
 }
@@ -105,7 +105,7 @@ func (i TestSocket) SetSocketReadDeadline(miliseconds int) error {
 
 // REAL code:
 type RealSocket struct { // This is the only code which holds the ACTUAL net connection:
-	RrealSocket net.Conn
+	Socket net.Conn
 }
 
 type RealConnectionGetter struct {
@@ -119,7 +119,7 @@ func (s RealSocket) Read() ([]byte, error) {
 	var err error
 
 	// 'numberOfBytes' will tell us how many bytes were read from socket, use to index into buffer:
-	numberOfBytesSent, err = s.RrealSocket.Read(buffer)
+	numberOfBytesSent, err = s.Socket.Read(buffer)
 	return buffer[:numberOfBytesSent], err
 }
 
@@ -128,19 +128,19 @@ func (s RealSocket) Write(userInput []byte) (int, error) {
 	var writeSuccess int
 	var err error
 
-	writeSuccess, err = s.RrealSocket.Write(userInput)
+	writeSuccess, err = s.Socket.Write(userInput)
 	return writeSuccess, err
 }
 
 // Close the ACTUAL socket:
 func (s RealSocket) Close() error {
-	var err error = s.RrealSocket.Close()
+	var err error = s.Socket.Close()
 	return err
 }
 
 // These next 2 function create the ACTUAL socket and attach the connection to RealSocket
 // ..... Create client-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) Socket {
+func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
 	var clientConnection net.Conn
 	var err error
 	var remoteHost string = fmt.Sprintf("%v:%v", address, rPort)
@@ -157,13 +157,13 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string,
 	}
 
 	// Attach connection to RealSocket & get the pointer to the instance:
-	pointerToRealSocket = &RealSocket{RrealSocket: clientConnection}
+	pointerToRealSocket = &RealSocket{Socket: clientConnection}
 
 	return pointerToRealSocket
 }
 
 // Creat listener-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) Socket {
+func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
@@ -185,7 +185,7 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	}
 
 	// Attach the connection to the RealSocket struct & return the pointer to the instance:
-	pointerToRealSocket = &RealSocket{RrealSocket: listenerConnection}
+	pointerToRealSocket = &RealSocket{Socket: listenerConnection}
 
 	return pointerToRealSocket
 }
