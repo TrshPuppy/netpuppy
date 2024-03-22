@@ -12,6 +12,7 @@ package utils
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"time"
 )
@@ -63,6 +64,11 @@ func (s *RealShell) StartShell(socketPointer *RealSocket) error {
 	socketStruct := *socketPointer
 	commandPending := true
 	var returnErr error
+
+	// Set Env variables:
+	// Set the prompt:
+	s.Shell.Env = os.Environ()
+	s.Shell.Env = append(s.Shell.Env, "PS1=Tiddies", `TITS=echo "$PS1"`)
 
 	// Create readers & writers for io.Copy():
 	stderrReader, _ := s.Shell.StderrPipe()
