@@ -12,7 +12,6 @@ package utils
 import (
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"time"
 )
@@ -53,8 +52,10 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) 
 	}
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	pointerToShell = &RealShell{Shell: exec.Command(bashPath)}
+	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--noprofile", "--norc", "-i", "-s")}
 
+	cmd := *pointerToShell
+	cmd.Shell.Env = append(cmd.Shell.Environ(), "PS1=tiddies")
 	// Get the pointer to the shell process and & return it:
 	return pointerToShell, nil
 }
@@ -64,11 +65,6 @@ func (s *RealShell) StartShell(socketPointer *RealSocket) error {
 	socketStruct := *socketPointer
 	commandPending := true
 	var returnErr error
-
-	// Set Env variables:
-	// Set the prompt:
-	s.Shell.Env = os.Environ()
-	s.Shell.Env = append(s.Shell.Env, "PS1=Tiddies", `TITS=echo "$PS1"`)
 
 	// Create readers & writers for io.Copy():
 	stderrReader, _ := s.Shell.StderrPipe()
@@ -135,6 +131,13 @@ func (s *RealShell) StartShell(socketPointer *RealSocket) error {
 			return returnErr
 		}
 		/*  FINISH UP REV SHELL BRANCH:
+
+			STABILIZING the shell:
+			- history
+				- ability to up arrow/ down arrow
+				- getting rid of the history on the host
+			- tab complete
+			- f
 			Commands to look into:
 				history
 					leave no history but allow user to see history if they want
