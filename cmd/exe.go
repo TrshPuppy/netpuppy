@@ -35,16 +35,11 @@ func Run(c conn.ConnectionGetter) {
 
 	// Make connection:
 	var socketInterface conn.SocketInterface
-	//var socketStruct conn.RealSocket
 	if thisPeer.ConnectionType == "offense" {
 		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
-		//socketStruct = socketInterface.(*conn.RealSocket)
 	} else {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
-
-	// Connect socket connection to peer
-	//thisPeer.Connection = socketInterface
 
 	// If shell flag is true, start shell:
 	var shellInterface shell.ShellInterface
@@ -58,8 +53,6 @@ func Run(c conn.ConnectionGetter) {
 			socketInterface.Close()
 			os.Exit(1)
 		}
-		// Connect shell to peer:
-		//thisPeer.ShellProcess = shellInterface
 	}
 
 	// Update banner w/ missing port:
@@ -71,11 +64,9 @@ func Run(c conn.ConnectionGetter) {
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-		// Use type-assertion to uncover the actual socket from the interface:
-
-		// Get readers & writers for shell & socket to give to io.Copy:
-		socketReader := socketInterface.GetReader()
-		socketWriter := socketInterface.GetWriter()
+		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
+		var socketReader *io.Reader = socketInterface.GetReader()
+		var socketWriter *io.Writer = socketInterface.GetWriter()
 
 		stdoutReader, er_ := shellInterface.GetStdoutReader()
 		if er_ != nil {
@@ -111,6 +102,7 @@ func Run(c conn.ConnectionGetter) {
 		var routineErr error
 		var commandPending bool = false
 
+		// STDOUT:::
 		go func(stdout *io.ReadCloser, socket *io.Writer) {
 			_, err := io.Copy(*socket, *stdout)
 			if err != nil {
@@ -120,6 +112,7 @@ func Run(c conn.ConnectionGetter) {
 			commandPending = false
 		}(stdoutReader, socketWriter)
 
+		// STDERR:::
 		go func(stderr *io.ReadCloser, socket *io.Writer) {
 			_, err := io.Copy(*socket, *stderr)
 			if err != nil {
@@ -129,6 +122,7 @@ func Run(c conn.ConnectionGetter) {
 			commandPending = false
 		}(stderrReader, socketWriter)
 
+		// STDIN:::
 		go func(socket *io.Reader, stdin *io.WriteCloser) {
 			commandPending = true
 			_, err := io.Copy(*stdin, *socket)
