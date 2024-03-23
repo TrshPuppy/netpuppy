@@ -161,45 +161,50 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	return &RealSocket{Socket: listenerConnection}
 }
 
-// // TEST Code:
-// type TestSocket struct {
-// 	Port    int
-// 	Address string
-// }
+// TEST Code:
+type TestSocket struct {
+	Port    int
+	Address string
+}
 
-// type TestConnectionGetter struct {
-// 	// Leave empty
-// }
+type TestConnectionGetter struct {
+	// Leave empty
+}
 
-// func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
-// 	testClientConnection := TestSocket{Port: rPort, Address: address}
-// 	return testClientConnection
-// }
+func (i TestSocket) Read() ([]byte, error) {
+	testByteArr := []byte("tiddies")
+	var testErr error
 
-// func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
-// 	testListenerConnection := TestSocket{Port: rPort, Address: address}
-// 	return testListenerConnection
-// }
+	return testByteArr, testErr
+}
 
-// func (i TestSocket) Read() ([]byte, error) {
-// 	testByteArr := []byte("tiddies")
-// 	var testErr error
+func (i TestSocket) Write([]byte) (int, error) {
+	var testInt int = 22
+	var testErrorNil error = nil
+	return testInt, testErrorNil
+}
 
-// 	return testByteArr, testErr
-// }
+func (i TestSocket) Close() error {
+	var testCloseErr error
+	return testCloseErr
+}
 
-// func (i TestSocket) Write([]byte) (int, error) {
-// 	var testInt int = 22
-// 	var testErrorNil error = nil
-// 	return testInt, testErrorNil
-// }
+func (s TestSocket) GetReader() *io.Reader {
+	var testReader io.Reader
+	return &testReader
+}
 
-// func (i TestSocket) Close() error {
-// 	var testCloseErr error
-// 	return testCloseErr
-// }
+func (s TestSocket) GetWriter() *io.Writer {
+	var testWriter io.Writer
+	return &testWriter
+}
 
-// func (i TestSocket) SetSocketReadDeadline(miliseconds int) error {
-// 	var testDeadlineErr error
-// 	return testDeadlineErr
-// }
+func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
+	testClientConnection := TestSocket{Port: rPort, Address: address}
+	return testClientConnection
+}
+
+func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
+	testListenerConnection := TestSocket{Port: rPort, Address: address}
+	return testListenerConnection
+}
