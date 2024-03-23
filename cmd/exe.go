@@ -12,15 +12,17 @@ import (
 	"time"
 
 	// NetPuppy pkgs:
+	"netpuppy/cmd/conn"
+	"netpuppy/cmd/shell"
 	"netpuppy/utils"
 )
 
-func Run(c utils.ConnectionGetter) {
+func Run(c conn.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 
 	// Create peer instance based on user input:
-	var thisPeer *utils.Peer = utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
+	var thisPeer *conn.Peer = conn.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
 
 	// Print banner, but don't print if we are the peer running the shell (ooh sneaky!):
 	if !thisPeer.Shell {
@@ -32,7 +34,7 @@ func Run(c utils.ConnectionGetter) {
 	}
 
 	// Make connection:
-	var socketInterface utils.SocketInterface
+	var socketInterface conn.SocketInterface
 	if thisPeer.ConnectionType == "offense" {
 		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
 	} else {
@@ -40,13 +42,13 @@ func Run(c utils.ConnectionGetter) {
 	}
 
 	// Connect socket connection to peer
-	thisPeer.Connection = socketInterface
+	//thisPeer.Connection = socketInterface
 
 	// If shell flag is true, start shell:
-	var shellInterface utils.ShellInterface
+	var shellInterface shell.ShellInterface
 	var shellErr error
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
-		var realShellGetter utils.RealShellGetter
+		var realShellGetter shell.RealShellGetter
 		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
 		if shellErr != nil {
 			// Send error through socket back to listener peer.
@@ -54,7 +56,7 @@ func Run(c utils.ConnectionGetter) {
 			os.Exit(1)
 		}
 		// Connect shell to peer:
-		thisPeer.ShellProcess = shellInterface
+		//thisPeer.ShellProcess = shellInterface
 	}
 
 	// Update banner w/ missing port:
@@ -62,15 +64,15 @@ func Run(c utils.ConnectionGetter) {
 	// fmt.Println(missingPortInBanner)
 
 	// Start SIGINT go routine & start channel to listen for SIGINT:
-	listenForSIGINT(thisPeer)
+	listenForSIGINT(socketInterface, thisPeer)
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Use type-assertion to uncover the actual socket from the interface:
-		realSocket := socketInterface.(*utils.RealSocket)
+		realSocket := socketInterface.(*conn.RealSocket)
 
 		// Start the shell:
-		err := thisPeer.ShellProcess.StartShell(realSocket)
+		err := shellInterface.StartShell(realSocket)
 		if err != nil {
 			// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
 			realSocket.Write([]byte(err.Error()))
@@ -89,7 +91,7 @@ func Run(c utils.ConnectionGetter) {
 			}
 		}
 
-		readSocket := func(socketInterface utils.SocketInterface, c chan<- []byte) {
+		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte) {
 			// Read data in socket:
 			for {
 				dataReadFromSocket, err := socketInterface.Read()
@@ -114,7 +116,7 @@ func Run(c utils.ConnectionGetter) {
 		}
 
 		// Write go routines
-		writeToSocket := func(data string, socketInterface utils.SocketInterface) {
+		writeToSocket := func(data string, socketInterface conn.SocketInterface) {
 			// Check length so we can clear channel, but not send blank data:
 			if len(data) > 0 {
 				_, erR := socketInterface.Write([]byte(data))
@@ -162,7 +164,7 @@ func Run(c utils.ConnectionGetter) {
 	}
 }
 
-func listenForSIGINT(thisPeer *utils.Peer) { // POINTER: passing Peer by reference (we ACTUALLY want to close it)
+func listenForSIGINT(connection conn.SocketInterface, thisPeer *conn.Peer) { // POINTER: passing Peer by reference (we ACTUALLY want to close it)
 	// If SIGINT: close connection, exit w/ code 2
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
@@ -173,7 +175,7 @@ func listenForSIGINT(thisPeer *utils.Peer) { // POINTER: passing Peer by referen
 				if !thisPeer.Shell {
 					fmt.Printf("signal: %v\n", sig)
 				}
-				thisPeer.Connection.Close()
+				connection.Close()
 				os.Exit(2)
 			}
 		}

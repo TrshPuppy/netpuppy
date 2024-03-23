@@ -36,7 +36,7 @@
 	blueprinting done by the interfaces, tests will fail.
 */
 
-package utils
+package conn
 
 import (
 	"fmt"

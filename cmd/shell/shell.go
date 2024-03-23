@@ -7,7 +7,7 @@
 	connection.go.
 */
 
-package utils
+package shell
 
 import (
 	"fmt"
