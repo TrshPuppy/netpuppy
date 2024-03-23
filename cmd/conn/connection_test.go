@@ -1,6 +1,8 @@
 package conn
 
 import (
+	"io"
+	"reflect"
 	"slices"
 	"testing"
 )
@@ -52,7 +54,7 @@ func TestGetConnectionFromListener(t *testing.T) {
 	}
 }
 
-func testSocketRead(t *testing.T) {
+func TestSocketRead(t *testing.T) {
 	testReadByteArr := []byte("tiddies")
 	var testReadErr error
 
@@ -67,4 +69,15 @@ func testSocketRead(t *testing.T) {
 		t.Errorf("Test Read readReturn - Got: %v, Expected: []byte\n", readReturn)
 	}
 
+}
+
+func TestGetReader(t *testing.T) {
+	var fakeSocket TestSocket
+
+	actualReturn := fakeSocket.GetReader()
+	expected := reflect.TypeOf((*io.Reader)(nil)).Elem()
+
+	if reflect.TypeOf(actualReturn).Elem() != expected {
+		t.Errorf("Test GetReader return - Got: %T, Expected: %v\n", actualReturn, expected)
+	}
 }
