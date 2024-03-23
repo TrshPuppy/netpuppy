@@ -143,10 +143,11 @@ func (s RealSocket) Close() error {
 func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
 	var clientConnection net.Conn
 	var err error
-	var remoteHost string = fmt.Sprintf("%v:%v", address, rPort)
 	var pointerToRealSocket *RealSocket
 
-	// Get client connection:
+	remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort))
+
+	// Get client connectiokjn:
 	clientConnection, err = net.Dial("tcp", remoteHost)
 	if err != nil {
 		if !shell {

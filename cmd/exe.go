@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"bufio"
@@ -11,18 +11,18 @@ import (
 	"os/signal"
 	"time"
 
-	// NetPuppy modules:
+	// NetPuppy pkgs:
 	"netpuppy/utils"
 )
 
-func runApp(c utils.ConnectionGetter) {
+func Run(c utils.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 
 	// Create peer instance based on user input:
 	var thisPeer *utils.Peer = utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
 
-	// Print banner:
+	// Print banner, but don't print if we are the peer running the shell (ooh sneaky!):
 	if !thisPeer.Shell {
 		fmt.Printf("%s", utils.Banner())
 
@@ -64,16 +64,20 @@ func runApp(c utils.ConnectionGetter) {
 	// Start SIGINT go routine & start channel to listen for SIGINT:
 	listenForSIGINT(thisPeer)
 
+	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-		// Start shell:
+		// Use type-assertion to uncover the actual socket from the interface:
 		realSocket := socketInterface.(*utils.RealSocket)
-		erR := thisPeer.ShellProcess.StartShell(realSocket)
-		if erR != nil {
-			realSocket.Write([]byte(erR.Error()))
+
+		// Start the shell:
+		err := thisPeer.ShellProcess.StartShell(realSocket)
+		if err != nil {
+			// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
+			realSocket.Write([]byte(err.Error()))
 			os.Exit(1)
 		}
 	} else {
-		// Go routines to read incoming data:
+		// Go routines to read user input:
 		readUserInput := func(c chan<- string) {
 			for {
 				userReader := bufio.NewReader(os.Stdin)
@@ -132,7 +136,7 @@ func runApp(c utils.ConnectionGetter) {
 			return
 		}
 
-		// Make channels:
+		// Make channels & defer their close until Run() returns:
 		userInputChan := make(chan string)
 		socketDataChan := make(chan []byte)
 		defer func() {
@@ -152,7 +156,7 @@ func runApp(c utils.ConnectionGetter) {
 				go printToUser(dataFromSocket)
 			default:
 				// Timeout:
-				time.Sleep(3 * time.Millisecond)
+				time.Sleep(69 * time.Millisecond)
 			}
 		}
 	}
@@ -174,10 +178,4 @@ func listenForSIGINT(thisPeer *utils.Peer) { // POINTER: passing Peer by referen
 			}
 		}
 	}()
-}
-
-func main() {
-	// In order to test the connection code w/o creating REAL sockets, runApp() handles most of the logic:
-	var realConnection utils.RealConnectionGetter
-	runApp(realConnection)
 }
