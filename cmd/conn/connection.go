@@ -40,6 +40,7 @@ package conn
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -52,55 +53,14 @@ type SocketInterface interface {
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
 	Close() error
+	GetReader() *io.Reader
+	GetWriter() *io.Writer
 }
 
 type ConnectionGetter interface {
 	// Used to check the real (RealConnectionGetter) & test (TestConnectionGetter) structs:
 	GetConnectionFromListener(int, string) SocketInterface
 	GetConnectionFromClient(int, string, bool) SocketInterface
-}
-
-// TEST Code:
-type TestSocket struct {
-	Port    int
-	Address string
-}
-
-type TestConnectionGetter struct {
-	// Leave empty
-}
-
-func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
-	testClientConnection := TestSocket{Port: rPort, Address: address}
-	return testClientConnection
-}
-
-func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
-	testListenerConnection := TestSocket{Port: rPort, Address: address}
-	return testListenerConnection
-}
-
-func (i TestSocket) Read() ([]byte, error) {
-	testByteArr := []byte("tiddies")
-	var testErr error
-
-	return testByteArr, testErr
-}
-
-func (i TestSocket) Write([]byte) (int, error) {
-	var testInt int = 22
-	var testErrorNil error = nil
-	return testInt, testErrorNil
-}
-
-func (i TestSocket) Close() error {
-	var testCloseErr error
-	return testCloseErr
-}
-
-func (i TestSocket) SetSocketReadDeadline(miliseconds int) error {
-	var testDeadlineErr error
-	return testDeadlineErr
 }
 
 // REAL code:
@@ -113,7 +73,7 @@ type RealConnectionGetter struct {
 }
 
 // Read from the ACTUAL socket on RealSocket struct:
-func (s RealSocket) Read() ([]byte, error) {
+func (s *RealSocket) Read() ([]byte, error) {
 	var buffer []byte = make([]byte, 1024)
 	var numberOfBytesSent int = 0
 	var err error
@@ -124,7 +84,7 @@ func (s RealSocket) Read() ([]byte, error) {
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
-func (s RealSocket) Write(userInput []byte) (int, error) {
+func (s *RealSocket) Write(userInput []byte) (int, error) {
 	var writeSuccess int
 	var err error
 
@@ -133,9 +93,19 @@ func (s RealSocket) Write(userInput []byte) (int, error) {
 }
 
 // Close the ACTUAL socket:
-func (s RealSocket) Close() error {
+func (s *RealSocket) Close() error {
 	var err error = s.Socket.Close()
 	return err
+}
+
+func (s *RealSocket) GetReader() *io.Reader {
+	reader := s.Socket.(io.Reader)
+	return &reader
+}
+
+func (s *RealSocket) GetWriter() *io.Writer {
+	writer := s.Socket.(io.Writer)
+	return &writer
 }
 
 // These next 2 function create the ACTUAL socket and attach the connection to RealSocket
@@ -168,7 +138,7 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
-	var pointerToRealSocket *RealSocket
+	//var pointerToRealSocket *RealSocket
 
 	// Listener created first:
 	listener, err1 := net.Listen("tcp", localPort)
@@ -186,7 +156,50 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	}
 
 	// Attach the connection to the RealSocket struct & return the pointer to the instance:
-	pointerToRealSocket = &RealSocket{Socket: listenerConnection}
+	// pointerToRealSocket = &RealSocket{Socket: listenerConnection}
 
-	return pointerToRealSocket
+	return &RealSocket{Socket: listenerConnection}
 }
+
+// // TEST Code:
+// type TestSocket struct {
+// 	Port    int
+// 	Address string
+// }
+
+// type TestConnectionGetter struct {
+// 	// Leave empty
+// }
+
+// func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
+// 	testClientConnection := TestSocket{Port: rPort, Address: address}
+// 	return testClientConnection
+// }
+
+// func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
+// 	testListenerConnection := TestSocket{Port: rPort, Address: address}
+// 	return testListenerConnection
+// }
+
+// func (i TestSocket) Read() ([]byte, error) {
+// 	testByteArr := []byte("tiddies")
+// 	var testErr error
+
+// 	return testByteArr, testErr
+// }
+
+// func (i TestSocket) Write([]byte) (int, error) {
+// 	var testInt int = 22
+// 	var testErrorNil error = nil
+// 	return testInt, testErrorNil
+// }
+
+// func (i TestSocket) Close() error {
+// 	var testCloseErr error
+// 	return testCloseErr
+// }
+
+// func (i TestSocket) SetSocketReadDeadline(miliseconds int) error {
+// 	var testDeadlineErr error
+// 	return testDeadlineErr
+// }

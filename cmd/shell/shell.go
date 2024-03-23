@@ -17,9 +17,9 @@ import (
 // Interface used to blueprint the RealShell struct & eventually TestShell struct:
 type ShellInterface interface {
 	StartShell() error
-	GetStdoutReader() (io.Reader, error)
-	GetStderrReader() (io.Reader, error)
-	GetStdinWriter() (io.Writer, error)
+	GetStdoutReader() (*io.ReadCloser, error)
+	GetStderrReader() (*io.ReadCloser, error)
+	GetStdinWriter() (*io.WriteCloser, error)
 }
 
 type ShellGetter interface {
@@ -61,19 +61,22 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) 
 	return pointerToShell, nil
 }
 
-func (s *RealShell) GetStdoutReader() (io.Reader, error) {
+func (s *RealShell) GetStdoutReader() (*io.ReadCloser, error) {
 	readCloser, err := s.Shell.StdoutPipe()
-	return readCloser.(io.Reader), err
+
+	return &readCloser, err
 }
 
-func (s *RealShell) GetStderrReader() (io.Reader, error) {
+func (s *RealShell) GetStderrReader() (*io.ReadCloser, error) {
 	readCloser, err := s.Shell.StderrPipe()
-	return readCloser.(io.Reader), err
+	// reader := readCloser.(io.Reader)
+	return &readCloser, err
 }
 
-func (s *RealShell) GetStdinWriter() (io.Writer, error) {
+func (s *RealShell) GetStdinWriter() (*io.WriteCloser, error) {
 	writeCloser, err := s.Shell.StdinPipe()
-	return writeCloser.(io.Writer), err
+	// writer := writeCloser.(io.Writer)
+	return &writeCloser, err
 }
 
 // This essentially wraps the actual exec.Cmd.Start() method:
