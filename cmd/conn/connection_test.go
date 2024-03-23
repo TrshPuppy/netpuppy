@@ -68,7 +68,32 @@ func TestSocketRead(t *testing.T) {
 	if !slices.Equal(readReturn, testReadByteArr) {
 		t.Errorf("Test Read readReturn - Got: %v, Expected: []byte\n", readReturn)
 	}
+}
 
+func TestSocketClose(t *testing.T) {
+	var fakeSocket TestSocket
+
+	expected := reflect.TypeOf((error)(nil))
+	actual := fakeSocket.Close()
+
+	if reflect.TypeOf(actual) != expected {
+		t.Errorf("Test Socket Close - expected: %T, actual: %v\n", expected, actual)
+	}
+}
+
+func TestSocketWrite(t *testing.T) {
+	var fakeSocket TestSocket
+	testWriteThis := []byte("tiddies")
+
+	expected := reflect.TypeOf(69)
+	writeReturn, err := fakeSocket.Write(testWriteThis)
+	if err != nil {
+		t.Errorf("Test Write return - Got: %v, Expected: error\n", err)
+	}
+
+	if reflect.TypeOf(writeReturn) != expected {
+		t.Errorf("Test Write return - Got: %T, Expected: %v\n", writeReturn, expected)
+	}
 }
 
 func TestGetReader(t *testing.T) {
@@ -79,5 +104,16 @@ func TestGetReader(t *testing.T) {
 
 	if reflect.TypeOf(actualReturn).Elem() != expected {
 		t.Errorf("Test GetReader return - Got: %T, Expected: %v\n", actualReturn, expected)
+	}
+}
+
+func TestGetWriter(t *testing.T) {
+	var fakeSocket TestSocket
+
+	actual := fakeSocket.GetWriter()
+	expected := reflect.TypeOf((*io.Writer)(nil)).Elem()
+
+	if reflect.TypeOf(actual).Elem() != expected {
+		t.Errorf("Test GetWriter return - Got: %T, Expected: %v\n", actual, expected)
 	}
 }
