@@ -1,4 +1,4 @@
-package utils
+package conn
 
 // Depending on user flags given, create this peer's type:
 type Peer struct {
@@ -6,10 +6,9 @@ type Peer struct {
 	RPort          int
 	LPort          int
 	Address        string
-	Connection     SocketInterface
-	Shell          bool
-	ShellProcess   ShellInterface
-	//ShellProcess *RealShell
+	//Connection     SocketInterface
+	Shell bool
+	//ShellProcess   ShellInterface
 	ReportTo string
 }
 

