@@ -5,6 +5,7 @@ import (
     "fmt"
     "os"
     "strings"
+    "netpuppy/utils"
 )
 
 func init() {
@@ -14,7 +15,7 @@ func init() {
 type Rainbow struct{}
 
 func (r *Rainbow) Execute(pluginDataChan chan<- string) {
-    fmt.Println("[Rainbow] Type your message and see it turn into a rainbow!")
+    fmt.Println(utils.Color("[Rainbow] Type your message and see it turn into a rainbow!", utils.Yellow))
     scanner := bufio.NewScanner(os.Stdin)
 
     for {
@@ -23,7 +24,7 @@ func (r *Rainbow) Execute(pluginDataChan chan<- string) {
         input := scanner.Text()
 
         if strings.TrimSpace(input) == "exit" {
-            fmt.Println("Exiting rainbow plugin.")
+            fmt.Println(utils.Color("Exiting rainbow plugin.", utils.Yellow))
             break
         }
 
