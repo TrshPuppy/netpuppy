@@ -50,7 +50,7 @@ $ go run main.go -H 0:0:0:0:0:0:0:1 -p 44444
 # Changing plugin store
 - In netpuppy you can change the plugin store by editing plugins/install.go and changing the github repo to your own url. for example: ```https://raw.githubusercontent.com/<repo_username>/<repo_name>/<branch>```
 
-make sure all the go plugins you create are in the root directory of your repo.
+- make sure all the go plugins you create are in the root directory of your repo.
 
 ## This project is still being built & improved!
 ### Contributing:
