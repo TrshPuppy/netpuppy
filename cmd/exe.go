@@ -20,6 +20,10 @@ import (
 )
 
 func Run(c conn.ConnectionGetter) {
+
+	pluginDataChan := make(chan string)
+	defer close(pluginDataChan)
+
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 
@@ -150,9 +154,6 @@ func Run(c conn.ConnectionGetter) {
 		}
 	} else {
 		// Go routines to read user input:
-		pluginDataChan := make(chan string)
-		defer close(pluginDataChan)
-
 		readUserInput := func(c chan<- string) {
 			for {
 				userReader := bufio.NewReader(os.Stdin)

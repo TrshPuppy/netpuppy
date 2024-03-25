@@ -8,8 +8,8 @@ import (
     "encoding/hex"
     "fmt"
     "os"
+    "strconv"
     "strings"
-	"netpuppy/utils"
 )
 
 func init() {
@@ -18,8 +18,15 @@ func init() {
 
 type Encrypt struct{}
 
+// ANSI color codes
+const (
+    Red   = "\033[31m"
+    Green = "\033[32m"
+    Reset = "\033[0m"
+)
+
 func (ep *Encrypt) Execute(pluginDataChan chan<- string) {
-    fmt.Println("[Encrypt] type a message followed by a flag: -md5, -sha1, -sha256, or -binary. Type 'exit' to quit.")
+    fmt.Println("[Encrypt] Type a message followed by a flag: -md5, -sha1, -sha256, -binary, or -d (for decrypt). Type 'exit' to quit.")
     scanner := bufio.NewScanner(os.Stdin)
 
     for {
@@ -34,7 +41,7 @@ func (ep *Encrypt) Execute(pluginDataChan chan<- string) {
 
         parts := strings.Fields(input)
         if len(parts) < 2 {
-            fmt.Println(utils.Color("[Encrypt Error] Unsupported encryption/encoding flag. Use '-md5', '-sha1', '-sha256', or '-binary'.", utils.Red))
+            fmt.Println(Red + "[Encrypt Error] Unsupported encryption/decoding flag. Use '-md5', '-sha1', '-sha256', '-binary', or '-d'." + Reset)
             continue
         }
 
@@ -42,6 +49,7 @@ func (ep *Encrypt) Execute(pluginDataChan chan<- string) {
         method := parts[len(parts)-1]
 
         var result string
+        var err error
 
         switch method {
         case "-md5":
@@ -52,15 +60,26 @@ func (ep *Encrypt) Execute(pluginDataChan chan<- string) {
             result = ep.SHA256(text)
         case "-binary":
             result = ep.Binary(text)
+        case "-d":
+            result, err = ep.BinaryToString(text)
+            if err != nil {
+                fmt.Println(Red + "[Decrypt Error] Invalid binary string." + Reset)
+                continue
+            }
         default:
-            fmt.Println(utils.Color("[Encrypt Error] Unsupported encryption/encoding flag. Use '-md5', '-sha1', '-sha256', or '-binary'.", utils.Red))
+            fmt.Println(Red + "[Encrypt Error] Unsupported encryption/decoding flag. Use '-md5', '-sha1', '-sha256', '-binary', or '-d'." + Reset)
             continue
         }
 
-		encodedLabel := utils.Color(fmt.Sprintf("[Encoded %s]", method), utils.Green)
-		encodedMessage := fmt.Sprintf("%s %s", encodedLabel, result)
-		pluginDataChan <- encodedMessage
-		fmt.Println(encodedMessage)
+        var encodedLabel string
+        if method == "-d" {
+            encodedLabel = Green + "[Decrypted Binary]" + Reset
+        } else {
+            encodedLabel = Green + fmt.Sprintf("[Encoded %s]", method) + Reset
+        }
+        encodedMessage := fmt.Sprintf("%s %s", encodedLabel, result)
+        pluginDataChan <- encodedMessage
+        fmt.Println(encodedMessage)
     }
 }
 
@@ -82,11 +101,25 @@ func (ep *Encrypt) SHA256(text string) string {
     return hex.EncodeToString(hasher.Sum(nil))
 }
 
-
 func (ep *Encrypt) Binary(text string) string {
     var binaryString strings.Builder
     for _, char := range text {
         binaryString.WriteString(fmt.Sprintf("%08b ", char))
     }
     return binaryString.String()
+}
+
+func (ep *Encrypt) BinaryToString(binaryStr string) (string, error) {
+    var text strings.Builder
+    binaryParts := strings.Fields(binaryStr)
+
+    for _, part := range binaryParts {
+        num, err := strconv.ParseInt(part, 2, 64)
+        if err != nil {
+            return "", err
+        }
+        text.WriteByte(byte(num))
+    }
+
+    return text.String(), nil
 }
