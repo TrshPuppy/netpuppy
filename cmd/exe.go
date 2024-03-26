@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -9,15 +10,78 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"time"
 	"strings"
 
 	// NetPuppy pkgs:
 	"netpuppy/cmd/conn"
 	"netpuppy/cmd/shell"
-	"netpuppy/utils"
 	"netpuppy/plugins"
+	"netpuppy/utils"
 )
+
+type RWMux struct{}
+
+func newRWMux() RWMux {
+	return RWMux{}
+}
+
+func (rw RWMux) Read(p []byte) (n int, err error) {
+	log.Printf("Reading from read mux: %x\n", p)
+	return 1, nil
+}
+
+func (rw RWMux) Write(p []byte) (n int, err error) {
+	log.Printf("Writing to write mux: %x\n", p)
+	return 1, nil
+}
+
+func (rw RWMux) Copy(dst io.Writer, src io.Reader, isStdIn bool) (written int64, err error) {
+	var buf []byte = nil
+	// If the reader has a WriteTo method, use it to do the copy.
+	// Avoids an allocation and a copy.
+	if buf == nil {
+		size := 32 * 1024
+		if l, ok := src.(*io.LimitedReader); ok && int64(size) > l.N {
+			if l.N < 1 {
+				size = 1
+			} else {
+				size = int(l.N)
+			}
+		}
+		buf = make([]byte, size)
+	}
+	for {
+		for i := 0; i < len(buf); i++ {
+			buf[i] = 0
+		}
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if nw < 0 || nr < nw {
+				nw = 0
+				if ew == nil {
+					ew = errors.New("Invalid write")
+				}
+			}
+			written += int64(nw)
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = errors.New("Short write")
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
+}
 
 func Run(c conn.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
@@ -36,11 +100,14 @@ func Run(c conn.ConnectionGetter) {
 	}
 
 	// Make connection:
+
 	var socketInterface conn.SocketInterface
+	peers := make(map[*net.Conn]net.Conn)
 	if thisPeer.ConnectionType == "offense" {
 		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
 	} else {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
+		peers[&socketInterface.(*conn.RealSocket).Socket] = socketInterface.(*conn.RealSocket).Socket
 	}
 
 	// If shell flag is true, start shell:
@@ -67,9 +134,9 @@ func Run(c conn.ConnectionGetter) {
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
+		rwMux := newRWMux()
 		var socketReader *io.Reader = socketInterface.GetReader()
 		var socketWriter *io.Writer = socketInterface.GetWriter()
-
 		stdoutReader, er_ := shellInterface.GetStdoutReader()
 		if er_ != nil {
 			socketInterface.Write([]byte(er_.Error()))
@@ -100,54 +167,54 @@ func Run(c conn.ConnectionGetter) {
 			os.Exit(1)
 		}
 
-		// Start go routines to connect pipes & move data:
-		var routineErr error
-		var commandPending bool = false
-
 		// STDOUT:::
 		go func(stdout *io.ReadCloser, socket *io.Writer) {
-			_, err := io.Copy(*socket, *stdout)
+			_, err := rwMux.Copy(*socket, *stdout, false)
 			if err != nil {
-				routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
+				routineErr := fmt.Errorf("Error copying stdout to socket: %v\n", err)
+				// Send the error msg down the socket, then exit quitely:
+				socketInterface.Write([]byte(routineErr.Error()))
+				os.Exit(1)
 				return
 			}
-			commandPending = false
 		}(stdoutReader, socketWriter)
 
 		// STDERR:::
 		go func(stderr *io.ReadCloser, socket *io.Writer) {
-			_, err := io.Copy(*socket, *stderr)
+			_, err := rwMux.Copy(*socket, *stderr, false)
 			if err != nil {
-				routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
+				routineErr := fmt.Errorf("Error copying stderr to socket: %v\n", err)
+				// Send the error msg down the socket, then exit quitely:
+				socketInterface.Write([]byte(routineErr.Error()))
+				os.Exit(1)
 				return
 			}
-			commandPending = false
 		}(stderrReader, socketWriter)
 
 		// STDIN:::
 		go func(socket *io.Reader, stdin *io.WriteCloser) {
-			commandPending = true
-			_, err := io.Copy(*stdin, *socket)
+			_, err := rwMux.Copy(*stdin, *socket, true)
 			if err != nil {
-				routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
+				routineErr := fmt.Errorf("Error copying socket to stdin: %v\n", err)
+				// Send the error msg down the socket, then exit quitely:
+				socketInterface.Write([]byte(routineErr.Error()))
+				os.Exit(1)
 				return
 			}
 		}(socketReader, stdinWriter)
 
-		// For loop which checks for an error captured in go routines.
-		//...... If there is no error, then a small timeout prevents the process from lagging:
 		for {
-			if routineErr != nil {
-				// Send the error msg down the socket, then exit quitely:
-				socketInterface.Write([]byte(routineErr.Error()))
-				os.Exit(1)
-			}
+			userReader := bufio.NewReader(os.Stdin)
+			userInput, err := userReader.ReadString('\n')
+			trimmedInput := strings.TrimSpace(userInput)
+      log.Println(trimmedInput);
 
-			if commandPending {
-				// Timeout:
-				time.Sleep(69 * time.Millisecond)
+			if err != nil {
+				log.Fatalf("Error reading input from user: %v\n", err)
 			}
 		}
+		// terminate client code
+		return
 	} else {
 		// Go routines to read user input:
 		pluginDataChan := make(chan string)
@@ -158,65 +225,18 @@ func Run(c conn.ConnectionGetter) {
 				userReader := bufio.NewReader(os.Stdin)
 				userInput, err := userReader.ReadString('\n')
 				trimmedInput := strings.TrimSpace(userInput)
-		
+
 				if cmd, exists := plugins.Commands[trimmedInput]; exists {
 					cmd.Execute(pluginDataChan)
 					continue
 				}
-		
+
 				if err != nil {
 					log.Fatalf("Error reading input from user: %v\n", err)
 				}
-		
+
 				c <- userInput
 			}
-		}
-
-		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte) {
-			// Read data in socket:
-			for {
-				dataReadFromSocket, err := socketInterface.Read()
-				if len(dataReadFromSocket) > 0 {
-					c <- dataReadFromSocket
-				}
-				if err != nil {
-					//Check for timeout error using net pkg:
-					//....... (type assertion checks if 'err' uses net.Error interface)
-					//....... (( isANetError will be true if it is using the net.Error interface))
-					netErr, isANetError := err.(net.Error)
-					if isANetError && netErr.Timeout() {
-						// If the socket timed out, have to set read deadline again (or connection will close):
-						continue
-					} else if errors.Is(err, io.EOF) {
-						continue
-					} else {
-						log.Fatalf("Error reading data from socket: %v\n", err)
-					}
-				}
-			}
-		}
-
-		// Write go routines
-		writeToSocket := func(data string, socketInterface conn.SocketInterface) {
-			// Check length so we can clear channel, but not send blank data:
-			if len(data) > 0 {
-				_, erR := socketInterface.Write([]byte(data))
-				if erR != nil {
-					log.Fatalf("Error writing user input buffer to socket: %v\n", erR)
-				}
-			}
-			return
-		}
-
-		printToUser := func(data []byte) {
-			// Check the length:
-			if len(data) > 0 {
-				_, err := os.Stdout.Write(data)
-				if err != nil {
-					log.Fatalf("Error printing data to user: %v\n", err)
-				}
-			}
-			return
 		}
 
 		// Make channels & defer their close until Run() returns:
@@ -227,24 +247,127 @@ func Run(c conn.ConnectionGetter) {
 			close(socketDataChan)
 		}()
 
+		if thisPeer.ConnectionType == "connect-back" {
+			go func() {
+				for {
+					bytesRead, err := socketInterface.Read()
+					if len(bytesRead) > 0 {
+						dataReadFromSocket := bytesRead[:]
+						dataRead := append([]byte(">>>> Read from peer: \n")[:], dataReadFromSocket...)
+						dataRead = bytes.ReplaceAll(dataRead[:], []byte("j"), []byte("k"))
+						socketDataChan <- dataRead
+					}
+					if err != nil {
+						//Check for timeout error using net pkg:
+						//....... (type assertion checks if 'err' uses net.Error interface)
+						//....... (( isANetError will be true if it is using the net.Error interface))
+						netErr, isANetError := err.(net.Error)
+						if isANetError && netErr.Timeout() {
+							// If the socket timed out, have to set read deadline again (or connection will close):
+							continue
+						} else if errors.Is(err, io.EOF) {
+							continue
+						} else {
+							log.Fatalf("Error reading data from socket: %v\n", err)
+						}
+					}
+				}
+			}()
+		}
+
+		startTCPServer := func(c chan<- []byte) {
+			if thisPeer.ConnectionType == "connect-back" {
+				return
+			}
+			readPeer := func(sConn net.Conn) {
+				for {
+					var buf []byte = make([]byte, 1024)
+					bytesRead, err := sConn.Read(buf)
+					if bytesRead > 0 {
+						dataReadFromSocket := buf[:]
+						dataRead := append([]byte(">>>> Read from peer: \n")[:], dataReadFromSocket...)
+						dataRead = bytes.ReplaceAll(dataRead[:], []byte("j"), []byte("k"))
+						c <- dataRead
+					}
+					if err != nil {
+						//Check for timeout error using net pkg:
+						//....... (type assertion checks if 'err' uses net.Error interface)
+						//....... (( isANetError will be true if it is using the net.Error interface))
+						netErr, isANetError := err.(net.Error)
+						if isANetError && netErr.Timeout() {
+							// If the socket timed out, have to set read deadline again (or connection will close):
+							continue
+						} else if errors.Is(err, io.EOF) {
+							continue
+						} else {
+							log.Printf("Error reading data from socket: %v\n", err)
+							sConn.Close()
+						}
+					}
+				}
+			}
+
+			// Read data in socket:
+			for {
+				sConn, err := socketInterface.(*conn.RealSocket).Listener.Accept()
+				if err != nil {
+					log.Fatalf("Failed to accept new conn. error: %v\n", err)
+				}
+				//socketInterface.(*conn.RealSocket).Socket = sConn
+				peers[&sConn] = sConn
+				go readPeer(sConn)
+			}
+		}
+
+		// Write go routines
+		writeToSocket := func(data string) {
+			// Check length so we can clear channel, but not send blank data:
+			if len(data) > 0 {
+				for _, cConn := range peers {
+					_, cErr := cConn.Write([]byte(data))
+					if cErr != nil {
+						log.Printf("Error writing user input buffer to socket: %v\n", cErr)
+						cConn.Close()
+					}
+				}
+			}
+		}
+
+		writePluginData := func(pluginData string) {
+			// Check length so we can clear channel, but not send blank data:
+			if len(pluginData) > 0 {
+				for _, cConn := range peers {
+					_, cErr := cConn.Write([]byte(pluginData + "\n"))
+					if cErr != nil {
+						log.Printf("Error sending plugin data to other user: %v", cErr)
+						cConn.Close()
+					}
+				}
+			}
+		}
+
+		printToUser := func(data []byte) {
+			// Check the length:
+			if len(data) > 0 {
+				_, err := os.Stdout.Write(data)
+				if err != nil {
+					log.Fatalf("Error printing data to user: %v\n", err)
+				}
+			}
+		}
+
 		// Start go routines to read from socket and user:
-		go readSocket(socketInterface, socketDataChan)
+		go startTCPServer(socketDataChan)
 		go readUserInput(userInputChan)
 
 		for {
 			select {
 			case dataFromUser := <-userInputChan:
-				go writeToSocket(dataFromUser, socketInterface)
+				go writeToSocket(dataFromUser)
 			case dataFromSocket := <-socketDataChan:
 				go printToUser(dataFromSocket)
 			case pluginData := <-pluginDataChan:
-				_, err := socketInterface.Write([]byte(pluginData + "\n"))
-				if err != nil {
-					log.Printf("Error sending plugin data to other user: %v", err)
-				}
-			default:
-				// Timeout:
-				time.Sleep(69 * time.Millisecond)
+				writePluginData(pluginData)
 			}
 		}
 	}
