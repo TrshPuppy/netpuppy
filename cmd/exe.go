@@ -15,7 +15,6 @@ import (
 	// NetPuppy pkgs:
 	"netpuppy/cmd/conn"
 	"netpuppy/cmd/shell"
-	"netpuppy/plugins"
 	"netpuppy/utils"
 )
 
@@ -207,7 +206,7 @@ func Run(c conn.ConnectionGetter) {
 			userReader := bufio.NewReader(os.Stdin)
 			userInput, err := userReader.ReadString('\n')
 			trimmedInput := strings.TrimSpace(userInput)
-      log.Println(trimmedInput);
+			log.Println(trimmedInput)
 
 			if err != nil {
 				log.Fatalf("Error reading input from user: %v\n", err)
@@ -217,24 +216,13 @@ func Run(c conn.ConnectionGetter) {
 		return
 	} else {
 		// Go routines to read user input:
-		pluginDataChan := make(chan string)
-		defer close(pluginDataChan)
-
 		readUserInput := func(c chan<- string) {
 			for {
 				userReader := bufio.NewReader(os.Stdin)
 				userInput, err := userReader.ReadString('\n')
-				trimmedInput := strings.TrimSpace(userInput)
-
-				if cmd, exists := plugins.Commands[trimmedInput]; exists {
-					cmd.Execute(pluginDataChan)
-					continue
-				}
-
 				if err != nil {
 					log.Fatalf("Error reading input from user: %v\n", err)
 				}
-
 				c <- userInput
 			}
 		}
@@ -252,10 +240,7 @@ func Run(c conn.ConnectionGetter) {
 				for {
 					bytesRead, err := socketInterface.Read()
 					if len(bytesRead) > 0 {
-						dataReadFromSocket := bytesRead[:]
-						dataRead := append([]byte(">>>> Read from peer: \n")[:], dataReadFromSocket...)
-						dataRead = bytes.ReplaceAll(dataRead[:], []byte("j"), []byte("k"))
-						socketDataChan <- dataRead
+            socketDataChan <- bytesRead[:]
 					}
 					if err != nil {
 						//Check for timeout error using net pkg:
@@ -279,13 +264,14 @@ func Run(c conn.ConnectionGetter) {
 			if thisPeer.ConnectionType == "connect-back" {
 				return
 			}
-			readPeer := func(sConn net.Conn) {
+      readPeer := func(sConn net.Conn) {
 				for {
 					var buf []byte = make([]byte, 1024)
 					bytesRead, err := sConn.Read(buf)
 					if bytesRead > 0 {
 						dataReadFromSocket := buf[:]
-						dataRead := append([]byte(">>>> Read from peer: \n")[:], dataReadFromSocket...)
+            heading := fmt.Sprintf("\n>>>> Read from peer: %d\n", &sConn)
+						dataRead := append([]byte(heading), dataReadFromSocket...)
 						dataRead = bytes.ReplaceAll(dataRead[:], []byte("j"), []byte("k"))
 						c <- dataRead
 					}
@@ -302,6 +288,8 @@ func Run(c conn.ConnectionGetter) {
 						} else {
 							log.Printf("Error reading data from socket: %v\n", err)
 							sConn.Close()
+              delete(peers, &sConn)
+              break;
 						}
 					}
 				}
@@ -323,24 +311,12 @@ func Run(c conn.ConnectionGetter) {
 		writeToSocket := func(data string) {
 			// Check length so we can clear channel, but not send blank data:
 			if len(data) > 0 {
-				for _, cConn := range peers {
+				for cConnPtr, cConn := range peers {
 					_, cErr := cConn.Write([]byte(data))
 					if cErr != nil {
 						log.Printf("Error writing user input buffer to socket: %v\n", cErr)
 						cConn.Close()
-					}
-				}
-			}
-		}
-
-		writePluginData := func(pluginData string) {
-			// Check length so we can clear channel, but not send blank data:
-			if len(pluginData) > 0 {
-				for _, cConn := range peers {
-					_, cErr := cConn.Write([]byte(pluginData + "\n"))
-					if cErr != nil {
-						log.Printf("Error sending plugin data to other user: %v", cErr)
-						cConn.Close()
+            delete(peers, cConnPtr)
 					}
 				}
 			}
@@ -366,8 +342,6 @@ func Run(c conn.ConnectionGetter) {
 				go writeToSocket(dataFromUser)
 			case dataFromSocket := <-socketDataChan:
 				go printToUser(dataFromSocket)
-			case pluginData := <-pluginDataChan:
-				writePluginData(pluginData)
 			}
 		}
 	}
