@@ -10,13 +10,11 @@ import (
 	"os"
 	"os/signal"
 	"time"
-	"strings"
 
 	// NetPuppy pkgs:
 	"netpuppy/cmd/conn"
 	"netpuppy/cmd/shell"
 	"netpuppy/utils"
-	"netpuppy/plugins"
 )
 
 func Run(c conn.ConnectionGetter) {
@@ -150,24 +148,13 @@ func Run(c conn.ConnectionGetter) {
 		}
 	} else {
 		// Go routines to read user input:
-		pluginDataChan := make(chan string)
-		defer close(pluginDataChan)
-
 		readUserInput := func(c chan<- string) {
 			for {
 				userReader := bufio.NewReader(os.Stdin)
 				userInput, err := userReader.ReadString('\n')
-				trimmedInput := strings.TrimSpace(userInput)
-		
-				if cmd, exists := plugins.Commands[trimmedInput]; exists {
-					cmd.Execute(pluginDataChan)
-					continue
-				}
-		
 				if err != nil {
 					log.Fatalf("Error reading input from user: %v\n", err)
 				}
-		
 				c <- userInput
 			}
 		}
@@ -237,11 +224,6 @@ func Run(c conn.ConnectionGetter) {
 				go writeToSocket(dataFromUser, socketInterface)
 			case dataFromSocket := <-socketDataChan:
 				go printToUser(dataFromSocket)
-			case pluginData := <-pluginDataChan:
-				_, err := socketInterface.Write([]byte(pluginData + "\n"))
-				if err != nil {
-					log.Printf("Error sending plugin data to other user: %v", err)
-				}
 			default:
 				// Timeout:
 				time.Sleep(69 * time.Millisecond)
