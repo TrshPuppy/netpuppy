@@ -28,6 +28,7 @@ type ShellGetter interface {
 	GetConnectBackInitiatedShell() (ShellInterface, error)
 }
 
+// REAL code:
 type RealShellGetter struct {
 	// Leave empty
 }
@@ -37,10 +38,12 @@ type RealShell struct {
 	Shell *exec.Cmd
 }
 
+/*....... TO DO .......
 // Get shell for Offense-initiated peer:
 // func (g RealShellGetter) GetOffenseInitiatedShell() ShellInterface {
 //
 // }
+ .................... */
 
 // Get shell for CB-initiated peer:
 func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
@@ -81,4 +84,57 @@ func (s *RealShell) StartShell() error {
 	// Start the shell:
 	var erR error = s.Shell.Start()
 	return erR
+}
+
+// TEST code:
+type TestShellGetter struct {
+	//
+}
+
+type TestShell struct {
+	Path   string
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+func (g TestShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
+	var fakePath string = "/bin/tiddies"
+	var fakeStdin io.Reader
+	var fakeStdout io.Writer
+	var fakeStderr io.Writer
+	var fakeErr error
+
+	var fakeShell TestShell = TestShell{Path: fakePath, Stdin: fakeStdin, Stdout: fakeStdout, Stderr: fakeStderr}
+	var fakePointerToShell *TestShell = &fakeShell
+
+	return fakePointerToShell, fakeErr
+}
+
+func (s *TestShell) GetStdoutReader() (*io.ReadCloser, error) {
+	var fakeReadCloser io.ReadCloser
+	var fakeError error
+
+	return &fakeReadCloser, fakeError
+}
+
+func (s *TestShell) GetStderrReader() (*io.ReadCloser, error) {
+	var fakeReadCloser io.ReadCloser
+	var fakeError error
+
+	return &fakeReadCloser, fakeError
+}
+
+func (s *TestShell) GetStdinWriter() (*io.WriteCloser, error) {
+	var fakeWriteCloser io.WriteCloser
+	var fakeError error
+
+	return &fakeWriteCloser, fakeError
+}
+
+func (s *TestShell) StartShell() error {
+	var fakeErr error
+	fakeErr = nil
+
+	return fakeErr
 }
