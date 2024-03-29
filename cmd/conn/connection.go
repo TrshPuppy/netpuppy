@@ -66,6 +66,7 @@ type ConnectionGetter interface {
 // REAL code:
 type RealSocket struct { // This is the only code which holds the ACTUAL net connection:
 	Socket net.Conn
+  Listener net.Listener
 }
 
 type RealConnectionGetter struct {
@@ -74,17 +75,20 @@ type RealConnectionGetter struct {
 
 // Read from the ACTUAL socket on RealSocket struct:
 func (s *RealSocket) Read() ([]byte, error) {
+  if (s.Socket == nil) {
+    return make([]byte, 1024), nil
+  }
 	var buffer []byte = make([]byte, 1024)
-	var numberOfBytesSent int = 0
-	var err error
-
 	// 'numberOfBytes' will tell us how many bytes were read from socket, use to index into buffer:
-	numberOfBytesSent, err = s.Socket.Read(buffer)
+  numberOfBytesSent, err := s.Socket.Read(buffer)
 	return buffer[:numberOfBytesSent], err
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
 func (s *RealSocket) Write(userInput []byte) (int, error) {
+  if (s.Socket == nil) {
+    return 1, nil
+  }
 	var writeSuccess int
 	var err error
 
@@ -94,16 +98,25 @@ func (s *RealSocket) Write(userInput []byte) (int, error) {
 
 // Close the ACTUAL socket:
 func (s *RealSocket) Close() error {
+  if (s.Socket == nil) {
+    return nil
+  }
 	var err error = s.Socket.Close()
 	return err
 }
 
 func (s *RealSocket) GetReader() *io.Reader {
+  if (s.Socket == nil) {
+    return nil
+  }
 	reader := s.Socket.(io.Reader)
 	return &reader
 }
 
 func (s *RealSocket) GetWriter() *io.Writer {
+  if (s.Socket == nil) {
+    return nil
+  }
 	writer := s.Socket.(io.Writer)
 	return &writer
 }
@@ -135,8 +148,6 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string,
 
 // Creat listener-type socket & attach to RealSocket:
 func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
-	var listenerConnection net.Conn
-	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
 	//var pointerToRealSocket *RealSocket
 
@@ -147,18 +158,18 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	}
 
 	// This ensures the listener closes before the function returns:
-	defer listener.Close()
+	//defer listener.Close()
 
 	// Create the connection using listener.Accept():
-	listenerConnection, err = listener.Accept()
-	if err != nil {
-		log.Fatalf("Error when creating listener connection: %v\n", err)
-	}
+	//listenerConnection, err = listener.Accept()
+	//if err != nil {
+		//log.Fatalf("Error when creating listener connection: %v\n", err)
+	//}
 
 	// Attach the connection to the RealSocket struct & return the pointer to the instance:
 	// pointerToRealSocket = &RealSocket{Socket: listenerConnection}
 
-	return &RealSocket{Socket: listenerConnection}
+	return &RealSocket{Socket: nil, Listener: listener}
 }
 
 // TEST Code:
