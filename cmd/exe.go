@@ -12,9 +12,9 @@ import (
 	"time"
 
 	// NetPuppy pkgs:
-	"netpuppy/cmd/conn"
-	"netpuppy/cmd/shell"
-	"netpuppy/utils"
+	"github.com/trshpuppy/netpuppy/cmd/conn"
+	"github.com/trshpuppy/netpuppy/cmd/shell"
+	"github.com/trshpuppy/netpuppy/utils"
 )
 
 func Run(c conn.ConnectionGetter) {
@@ -65,6 +65,16 @@ func Run(c conn.ConnectionGetter) {
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
+		/*
+
+			4/4/24: TP U ARE HERE!
+			 - need to figure out how to make io.Reader/Writer
+			 	out of PTMx & PTS device files for io.Copy
+			 - maybe look into golang fs instead?
+			 - or ioctl
+			 - or os.OPEN_FILE_SOMEHOW_TO_GET_READ/WRITERS
+
+		*/
 		var socketReader *io.Reader = socketInterface.GetReader()
 		var socketWriter *io.Writer = socketInterface.GetWriter()
 
@@ -99,53 +109,58 @@ func Run(c conn.ConnectionGetter) {
 		}
 
 		// Start go routines to connect pipes & move data:
-		var routineErr error
-		var commandPending bool = false
+		//	var routineErr error
+		//	var commandPending bool = false
+
+		//	// Go routine for using io.Copy to copy pty fd to socket:
+		//	go func() {
+		//		_, err := io.Copy()
+		//	}(socketWriter, shellInterface.PTY)
 
 		// STDOUT:::
-		go func(stdout *io.ReadCloser, socket *io.Writer) {
-			_, err := io.Copy(*socket, *stdout)
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
-				return
-			}
-			commandPending = false
-		}(stdoutReader, socketWriter)
+		// go func(stdout *io.ReadCloser, socket *io.Writer) {
+		// 	_, err := io.Copy(*socket, *stdout)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
+		// 		return
+		// 	}
+		// 	commandPending = false
+		// }(stdoutReader, socketWriter)
 
-		// STDERR:::
-		go func(stderr *io.ReadCloser, socket *io.Writer) {
-			_, err := io.Copy(*socket, *stderr)
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
-				return
-			}
-			commandPending = false
-		}(stderrReader, socketWriter)
+		// // STDERR:::
+		// go func(stderr *io.ReadCloser, socket *io.Writer) {
+		// 	_, err := io.Copy(*socket, *stderr)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
+		// 		return
+		// 	}
+		// 	commandPending = false
+		// }(stderrReader, socketWriter)
 
-		// STDIN:::
-		go func(socket *io.Reader, stdin *io.WriteCloser) {
-			commandPending = true
-			_, err := io.Copy(*stdin, *socket)
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
-				return
-			}
-		}(socketReader, stdinWriter)
+		// // STDIN:::
+		// go func(socket *io.Reader, stdin *io.WriteCloser) {
+		// 	commandPending = true
+		// 	_, err := io.Copy(*stdin, *socket)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
+		// 		return
+		// 	}
+		// }(socketReader, stdinWriter)
 
 		// For loop which checks for an error captured in go routines.
 		//...... If there is no error, then a small timeout prevents the process from lagging:
-		for {
-			if routineErr != nil {
-				// Send the error msg down the socket, then exit quitely:
-				socketInterface.Write([]byte(routineErr.Error()))
-				os.Exit(1)
-			}
+		//for {
+		//if routineErr != nil {
+		//// Send the error msg down the socket, then exit quitely:
+		//socketInterface.Write([]byte(routineErr.Error()))
+		//os.Exit(1)
+		//}
 
-			if commandPending {
-				// Timeout:
-				time.Sleep(69 * time.Millisecond)
-			}
-		}
+		//// if commandPending {
+		//// 	// Timeout:
+		//// 	time.Sleep(69 * time.Millisecond)
+		//// }
+		//}
 	} else {
 		// Go routines to read user input:
 		readUserInput := func(c chan<- string) {

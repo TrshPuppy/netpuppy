@@ -2,8 +2,8 @@ package main
 
 import (
 	// NetPuppy pkgs:
-	"netpuppy/cmd"
-	"netpuppy/cmd/conn"
+	"github.com/trshpuppy/netpuppy/cmd"
+	"github.com/trshpuppy/netpuppy/cmd/conn"
 )
 
 func main() {

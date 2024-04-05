@@ -2,7 +2,7 @@
 # TP Custom:
 netpuppy-pkg/__pycache__
 bin
-pkg
+# pkg
 snyk
 .dccache
 debug
