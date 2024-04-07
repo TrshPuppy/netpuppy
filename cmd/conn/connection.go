@@ -53,8 +53,8 @@ type SocketInterface interface {
 	Read() ([]byte, error)
 	Write([]byte) (int, error)
 	Close() error
-	GetReader() *io.Reader
-	GetWriter() *io.Writer
+	GetReader() io.Reader
+	GetWriter() io.Writer
 }
 
 type ConnectionGetter interface {
@@ -98,14 +98,14 @@ func (s *RealSocket) Close() error {
 	return err
 }
 
-func (s *RealSocket) GetReader() *io.Reader {
-	reader := s.Socket.(io.Reader)
-	return &reader
+func (s *RealSocket) GetReader() io.Reader {
+	reader := s.Socket
+	return reader
 }
 
-func (s *RealSocket) GetWriter() *io.Writer {
-	writer := s.Socket.(io.Writer)
-	return &writer
+func (s *RealSocket) GetWriter() io.Writer {
+	writer := s.Socket
+	return writer
 }
 
 // These next 2 function create the ACTUAL socket and attach the connection to RealSocket
@@ -189,14 +189,14 @@ func (i TestSocket) Close() error {
 	return testCloseErr
 }
 
-func (s TestSocket) GetReader() *io.Reader {
+func (s TestSocket) GetReader() io.Reader {
 	var testReader io.Reader
-	return &testReader
+	return testReader
 }
 
-func (s TestSocket) GetWriter() *io.Writer {
+func (s TestSocket) GetWriter() io.Writer {
 	var testWriter io.Writer
-	return &testWriter
+	return testWriter
 }
 
 func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
