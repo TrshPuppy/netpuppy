@@ -65,8 +65,8 @@ func Run(c conn.ConnectionGetter) {
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
-		var socketReader *io.Reader = socketInterface.GetReader()
-		var socketWriter *io.Writer = socketInterface.GetWriter()
+		var socketReader io.Reader = socketInterface.GetReader()
+		var socketWriter io.Writer = socketInterface.GetWriter()
 
 		stdoutReader, er_ := shellInterface.GetStdoutReader()
 		if er_ != nil {
@@ -103,8 +103,8 @@ func Run(c conn.ConnectionGetter) {
 		var commandPending bool = false
 
 		// STDOUT:::
-		go func(stdout *io.ReadCloser, socket *io.Writer) {
-			_, err := io.Copy(*socket, *stdout)
+		go func(stdout io.ReadCloser, socket io.Writer) {
+			_, err := io.Copy(socket, stdout)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
 				return
@@ -113,8 +113,8 @@ func Run(c conn.ConnectionGetter) {
 		}(stdoutReader, socketWriter)
 
 		// STDERR:::
-		go func(stderr *io.ReadCloser, socket *io.Writer) {
-			_, err := io.Copy(*socket, *stderr)
+		go func(stderr io.ReadCloser, socket io.Writer) {
+			_, err := io.Copy(socket, stderr)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
 				return
@@ -123,9 +123,9 @@ func Run(c conn.ConnectionGetter) {
 		}(stderrReader, socketWriter)
 
 		// STDIN:::
-		go func(socket *io.Reader, stdin *io.WriteCloser) {
+		go func(socket io.Reader, stdin io.WriteCloser) {
 			commandPending = true
-			_, err := io.Copy(*stdin, *socket)
+			_, err := io.Copy(stdin, socket)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
 				return
