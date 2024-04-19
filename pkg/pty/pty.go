@@ -7,7 +7,7 @@ import (
 )
 
 // func Start(c *exec.Cmd) error {
-func GetPseudoterminalDevices() (*os.File, string, error) {
+func GetPseudoterminalDevices() (*os.File, *os.File, error) {
 	c := exec.Command("/bin/bash")
 
 	// Given the *exec.Cmd, we should start and return the PTYs and PTYmx:
@@ -16,38 +16,43 @@ func GetPseudoterminalDevices() (*os.File, string, error) {
 	return mDevice, sDevice, err
 }
 
-func Start(c *exec.Cmd) (*os.File, string, error) {
+func Start(c *exec.Cmd) (*os.File, *os.File, error) {
 	var mptr *os.File
 	var sname string
 	var err error
 
 	// Get pseudoterminal master from /dev/ptmx
-	mptr, err = os.OpenFile("/dev/ptmx", os.O_RDONLY, 0666)
+	mptr, err = os.OpenFile("/dev/ptmx", os.O_RDWR, os.ModeDevice)
 	if err != nil {
-		return mptr, sname, err
+		return nil, nil, err
 	}
 
-	defer mptr.Close()
+	//defer mptr.Close()
 
 	// Get the name of the slave device:
 	sname, err = GetPTSName(mptr)
 	if err != nil {
-		return mptr, sname, err
+		return nil, nil, err
 	}
 
 	// Now that we have the name, we have to call grantpt() & unlockpt():
 	err = GrantPT(mptr)
 	if err != nil {
-		return nil, sname, err
+		return nil, nil, err
 	}
 
 	err = UnlockPt(mptr)
 	if err != nil {
-		return nil, sname, err
+		return nil, nil, err
 	}
 	fmt.Printf("PTS name: %s\n", sname)
+
 	// Now that permission is granted, and the slave is unlocked, we can open the pts device file:
-	return mptr, sname, nil
+	sptr, err := os.OpenFile(sname, os.O_RDWR, os.ModeDevice)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mptr, sptr, nil
 }
 
 /*

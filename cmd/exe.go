@@ -14,6 +14,7 @@ import (
 	// NetPuppy pkgs:
 	"github.com/trshpuppy/netpuppy/cmd/conn"
 	"github.com/trshpuppy/netpuppy/cmd/shell"
+	"github.com/trshpuppy/netpuppy/pkg/pty"
 	"github.com/trshpuppy/netpuppy/utils"
 )
 
@@ -42,14 +43,15 @@ func Run(c conn.ConnectionGetter) {
 	}
 
 	// If shell flag is true, start shell:
-	var shellInterface shell.ShellInterface
+	//	var shellInterface shell.ShellInterface
+	var shellInterface *shell.RealShell
 	var shellErr error
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		var realShellGetter shell.RealShellGetter
 		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
 		if shellErr != nil {
-			// Send error through socket back to listener peer.
-			socketInterface.Write([]byte(shellErr.Error()))
+			errString := "Error starting shell: " + shellErr.Error()
+			socketInterface.Write([]byte(errString))
 			socketInterface.Close()
 			os.Exit(1)
 		}
@@ -64,6 +66,75 @@ func Run(c conn.ConnectionGetter) {
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
+		// Get pts and ptm device files:
+		master, pts, err := pty.GetPseudoterminalDevices()
+		if err != nil {
+			// Send error through socket, then quit:
+			errString := "Error starting shell: " + err.Error()
+			socketInterface.Write([]byte(errString))
+			socketInterface.Close()
+			os.Exit(1)
+		}
+
+		defer pts.Close()
+		defer master.Close()
+
+		// Hook up slave device to bash process:
+		shellInterface.Shell.Stdin = pts
+		shellInterface.Shell.Stdout = pts
+		shellInterface.Shell.Stderr = pts
+
+		// Start shell:
+		err = shellInterface.StartShell()
+		if err != nil {
+			//			// Remember to close the device files:
+			//			pts.Close()
+			//			master.Close()
+
+			// Write error to socket, close socket, quit:
+			errString := "Error starting shell: " + err.Error()
+			socketInterface.Write([]byte(errString))
+			socketInterface.Close()
+			os.Exit(1)
+		}
+
+		// Attach master device to socket:
+		var routineErr error
+		commandPending := true
+
+		// Write output from master device to socket:
+		go func(socket conn.SocketInterface, master *os.File) {
+			_, err := io.Copy(*socket.GetWriter(), master)
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+				return
+			}
+			commandPending = false
+		}(socketInterface, master)
+
+		// Write output from socket to master device:
+		go func(socket conn.SocketInterface, master *os.File) {
+			commandPending = true
+			_, err := io.Copy(master, *socket.GetReader())
+			if err != nil {
+				routineErr = fmt.Errorf("Error socket to master device: %v\n", err)
+				return
+			}
+		}(socketInterface, master)
+
+		for {
+			if routineErr != nil {
+				// Send error through socket, then quit:
+				socketInterface.Write([]byte(routineErr.Error()))
+				socketInterface.Close()
+				os.Exit(1)
+			}
+
+			if commandPending {
+				// Timeout:
+				time.Sleep(399 * time.Millisecond)
+			}
+		}
 		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
 		/*
 
@@ -75,38 +146,38 @@ func Run(c conn.ConnectionGetter) {
 			 - or os.OPEN_FILE_SOMEHOW_TO_GET_READ/WRITERS
 
 		*/
-		var socketReader *io.Reader = socketInterface.GetReader()
-		var socketWriter *io.Writer = socketInterface.GetWriter()
+		// var socketReader *io.Reader = socketInterface.GetReader()
+		// var socketWriter *io.Writer = socketInterface.GetWriter()
 
-		stdoutReader, er_ := shellInterface.GetStdoutReader()
-		if er_ != nil {
-			socketInterface.Write([]byte(er_.Error()))
-			socketInterface.Close()
-			os.Exit(1)
-		}
+		// stdoutReader, er_ := shellInterface.GetStdoutReader()
+		// if er_ != nil {
+		// 	socketInterface.Write([]byte(er_.Error()))
+		// 	socketInterface.Close()
+		// 	os.Exit(1)
+		// }
 
-		stderrReader, e_r := shellInterface.GetStderrReader()
-		if e_r != nil {
-			socketInterface.Write([]byte(e_r.Error()))
-			socketInterface.Close()
-			os.Exit(1)
-		}
+		// stderrReader, e_r := shellInterface.GetStderrReader()
+		// if e_r != nil {
+		// 	socketInterface.Write([]byte(e_r.Error()))
+		// 	socketInterface.Close()
+		// 	os.Exit(1)
+		// }
 
-		stdinWriter, _rr := shellInterface.GetStdinWriter()
-		if _rr != nil {
-			socketInterface.Write([]byte(_rr.Error()))
-			socketInterface.Close()
-			os.Exit(1)
-		}
+		// stdinWriter, _rr := shellInterface.GetStdinWriter()
+		// if _rr != nil {
+		// 	socketInterface.Write([]byte(_rr.Error()))
+		// 	socketInterface.Close()
+		// 	os.Exit(1)
+		// }
 
 		// Start the shell:
-		err := shellInterface.StartShell()
-		if err != nil {
-			// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
-			socketInterface.Write([]byte(err.Error()))
-			socketInterface.Close()
-			os.Exit(1)
-		}
+		//	err = shellInterface.StartShell()
+		//	if err != nil {
+		//		// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
+		//		socketInterface.Write([]byte(err.Error()))
+		//		socketInterface.Close()
+		//		os.Exit(1)
+		//	}
 
 		// Start go routines to connect pipes & move data:
 		//	var routineErr error

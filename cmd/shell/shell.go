@@ -11,23 +11,22 @@ package shell
 
 import (
 	"io"
-	"os"
 	"os/exec"
 )
 
 // Interface used to blueprint the RealShell struct & eventually TestShell struct:
-type ShellInterface interface {
-	StartShell() error
-	GetStdoutReader() (*io.ReadCloser, error)
-	GetStderrReader() (*io.ReadCloser, error)
-	GetStdinWriter() (*io.WriteCloser, error)
-}
+//type ShellInterface interface {
+//	StartShell() error
+//	GetStdoutReader() (*io.ReadCloser, error)
+//	GetStderrReader() (*io.ReadCloser, error)
+//	GetStdinWriter() (*io.WriteCloser, error)
+//}
 
-type ShellGetter interface {
-	// Used to check the real (RealShellGetter) & test (TestShellGetter) structs:
-	// GetOffenseInitiatedShell() ShellInterface // Return RealShell OR TestShell, blueprinted against BashShell interface: <-------- eventually this will be a thing
-	GetConnectBackInitiatedShell() (ShellInterface, error)
-}
+//type ShellGetter interface {
+//	// Used to check the real (RealShellGetter) & test (TestShellGetter) structs:
+//	// GetOffenseInitiatedShell() ShellInterface // Return RealShell OR TestShell, blueprinted against BashShell interface: <-------- eventually this will be a thing
+//	GetConnectBackInitiatedShell() (ShellInterface, error)
+//}
 
 // REAL code:
 type RealShellGetter struct {
@@ -37,7 +36,7 @@ type RealShellGetter struct {
 // Holds the REAL shell process/ Cmd struct (from exec pkg):
 type RealShell struct {
 	Shell *exec.Cmd
-	PTY   *os.File
+	//PTY   *os.File
 }
 
 /*....... TO DO .......
@@ -48,7 +47,8 @@ type RealShell struct {
  .................... */
 
 // Get shell for CB-initiated peer:
-func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
+// func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
+func (g RealShellGetter) GetConnectBackInitiatedShell() (*RealShell, error) {
 	// If bash exists on the system, find it, save the path:
 	var pointerToShell *RealShell
 
@@ -58,7 +58,8 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) 
 	}
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--noprofile", "--norc", "-i", "-s")}
+	//	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--noprofile", "--norc", "-i", "-s")}
+	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--norc", "-s")}
 	prompt := `PS1=\[\e]0;\u@\h: \w\a\]\[\033[;94m\]┌──${debian_chroot:+($debian_chroot)──}${VIRTUAL_ENV:+(\[\033[0;1m\]$(basename $VIRTUAL_ENV)\[\033[;94m\])}(\[\033[1;31m\]\u㉿\h\[\033[;94m\])-[\[\033[0;1m\]\w\[\033[;94m\]]\n\[\033[;94m\]└─\[\033[1;31m\]\$\[\033[0m\]`
 
 	cmd := *pointerToShell
