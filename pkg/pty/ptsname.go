@@ -40,10 +40,11 @@ import (
 	"os"
 )
 
-func GetPTSName(f *os.File) (string, error) {
-	// Using CGo to call ptsname_r() which is part of stdlib.h. We need this to get the slave device file name.
+// Using CGo to call ptsname_r() which is part of stdlib.h. We need this to get the slave device file name:
+// ....... https://linux.die.net/man/3/ptsname
+func GetPTSName(masterDevice *os.File) (string, error) {
 	var nullError error
-	i := f.Fd()
+	i := masterDevice.Fd()
 	buf := C.getPTSn(C.ulong(i))
 	name := C.GoString(buf)
 

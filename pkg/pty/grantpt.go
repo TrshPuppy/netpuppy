@@ -16,9 +16,11 @@ import (
 	"os"
 )
 
-func GrantPT(mfd *os.File) error {
+// Use cgo to call grantpt() which grants our master device access to the slave device:
+// ....... https://linux.die.net/man/3/grantpt
+func GrantPT(masterDevice *os.File) error {
 	var err error
-	ifd := mfd.Fd()
+	ifd := masterDevice.Fd()
 
 	success := C.callGrant(C.ulong(ifd))
 	if success != 0 {

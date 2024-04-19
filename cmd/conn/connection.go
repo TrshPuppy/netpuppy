@@ -155,9 +155,6 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 		log.Fatalf("Error when creating listener connection: %v\n", err)
 	}
 
-	// Attach the connection to the RealSocket struct & return the pointer to the instance:
-	// pointerToRealSocket = &RealSocket{Socket: listenerConnection}
-
 	return &RealSocket{Socket: listenerConnection}
 }
 
