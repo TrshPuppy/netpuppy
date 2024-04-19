@@ -12,9 +12,10 @@ import (
 	"time"
 
 	// NetPuppy pkgs:
-	"netpuppy/cmd/conn"
-	"netpuppy/cmd/shell"
-	"netpuppy/utils"
+	"github.com/trshpuppy/netpuppy/cmd/conn"
+	"github.com/trshpuppy/netpuppy/cmd/shell"
+	"github.com/trshpuppy/netpuppy/pkg/pty"
+	"github.com/trshpuppy/netpuppy/utils"
 )
 
 func Run(c conn.ConnectionGetter) {
@@ -42,14 +43,15 @@ func Run(c conn.ConnectionGetter) {
 	}
 
 	// If shell flag is true, start shell:
-	var shellInterface shell.ShellInterface
+	//	var shellInterface shell.ShellInterface
+	var shellInterface *shell.RealShell
 	var shellErr error
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		var realShellGetter shell.RealShellGetter
 		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
 		if shellErr != nil {
-			// Send error through socket back to listener peer.
-			socketInterface.Write([]byte(shellErr.Error()))
+			errString := "Error starting shell: " + shellErr.Error()
+			socketInterface.Write([]byte(errString))
 			socketInterface.Close()
 			os.Exit(1)
 		}
@@ -64,88 +66,172 @@ func Run(c conn.ConnectionGetter) {
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
-		var socketReader io.Reader = socketInterface.GetReader()
-		var socketWriter io.Writer = socketInterface.GetWriter()
-
-		stdoutReader, er_ := shellInterface.GetStdoutReader()
-		if er_ != nil {
-			socketInterface.Write([]byte(er_.Error()))
-			socketInterface.Close()
-			os.Exit(1)
-		}
-
-		stderrReader, e_r := shellInterface.GetStderrReader()
-		if e_r != nil {
-			socketInterface.Write([]byte(e_r.Error()))
-			socketInterface.Close()
-			os.Exit(1)
-		}
-
-		stdinWriter, _rr := shellInterface.GetStdinWriter()
-		if _rr != nil {
-			socketInterface.Write([]byte(_rr.Error()))
-			socketInterface.Close()
-			os.Exit(1)
-		}
-
-		// Start the shell:
-		err := shellInterface.StartShell()
+		// Get pts and ptm device files:
+		master, pts, err := pty.GetPseudoterminalDevices()
 		if err != nil {
-			// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
-			socketInterface.Write([]byte(err.Error()))
+			// Send error through socket, then quit:
+			errString := "Error starting shell: " + err.Error()
+			socketInterface.Write([]byte(errString))
 			socketInterface.Close()
 			os.Exit(1)
 		}
 
-		// Start go routines to connect pipes & move data:
+		defer pts.Close()
+		defer master.Close()
+
+		// Hook up slave device to bash process:
+		shellInterface.Shell.Stdin = pts
+		shellInterface.Shell.Stdout = pts
+		shellInterface.Shell.Stderr = pts
+
+		// Start shell:
+		err = shellInterface.StartShell()
+		if err != nil {
+			//			// Remember to close the device files:
+			//			pts.Close()
+			//			master.Close()
+
+			// Write error to socket, close socket, quit:
+			errString := "Error starting shell: " + err.Error()
+			socketInterface.Write([]byte(errString))
+			socketInterface.Close()
+			os.Exit(1)
+		}
+
+		// Attach master device to socket:
 		var routineErr error
-		var commandPending bool = false
+		commandPending := true
 
-		// STDOUT:::
-		go func(stdout io.ReadCloser, socket io.Writer) {
-			_, err := io.Copy(socket, stdout)
+		// Write output from master device to socket:
+		go func(socket conn.SocketInterface, master *os.File) {
+			_, err := io.Copy(*socket.GetWriter(), master)
 			if err != nil {
-				routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
+				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
 				return
 			}
 			commandPending = false
-		}(stdoutReader, socketWriter)
+		}(socketInterface, master)
 
-		// STDERR:::
-		go func(stderr io.ReadCloser, socket io.Writer) {
-			_, err := io.Copy(socket, stderr)
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
-				return
-			}
-			commandPending = false
-		}(stderrReader, socketWriter)
-
-		// STDIN:::
-		go func(socket io.Reader, stdin io.WriteCloser) {
+		// Write output from socket to master device:
+		go func(socket conn.SocketInterface, master *os.File) {
 			commandPending = true
-			_, err := io.Copy(stdin, socket)
+			_, err := io.Copy(master, *socket.GetReader())
 			if err != nil {
-				routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
+				routineErr = fmt.Errorf("Error socket to master device: %v\n", err)
 				return
 			}
-		}(socketReader, stdinWriter)
+		}(socketInterface, master)
 
-		// For loop which checks for an error captured in go routines.
-		//...... If there is no error, then a small timeout prevents the process from lagging:
 		for {
 			if routineErr != nil {
-				// Send the error msg down the socket, then exit quitely:
+				// Send error through socket, then quit:
 				socketInterface.Write([]byte(routineErr.Error()))
+				socketInterface.Close()
 				os.Exit(1)
 			}
 
 			if commandPending {
 				// Timeout:
-				time.Sleep(69 * time.Millisecond)
+				time.Sleep(399 * time.Millisecond)
 			}
 		}
+		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
+		/*
+
+			4/4/24: TP U ARE HERE!
+			 - need to figure out how to make io.Reader/Writer
+			 	out of PTMx & PTS device files for io.Copy
+			 - maybe look into golang fs instead?
+			 - or ioctl
+			 - or os.OPEN_FILE_SOMEHOW_TO_GET_READ/WRITERS
+
+		*/
+		// var socketReader *io.Reader = socketInterface.GetReader()
+		// var socketWriter *io.Writer = socketInterface.GetWriter()
+
+		// stdoutReader, er_ := shellInterface.GetStdoutReader()
+		// if er_ != nil {
+		// 	socketInterface.Write([]byte(er_.Error()))
+		// 	socketInterface.Close()
+		// 	os.Exit(1)
+		// }
+
+		// stderrReader, e_r := shellInterface.GetStderrReader()
+		// if e_r != nil {
+		// 	socketInterface.Write([]byte(e_r.Error()))
+		// 	socketInterface.Close()
+		// 	os.Exit(1)
+		// }
+
+		// stdinWriter, _rr := shellInterface.GetStdinWriter()
+		// if _rr != nil {
+		// 	socketInterface.Write([]byte(_rr.Error()))
+		// 	socketInterface.Close()
+		// 	os.Exit(1)
+		// }
+
+		// Start the shell:
+		//	err = shellInterface.StartShell()
+		//	if err != nil {
+		//		// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
+		//		socketInterface.Write([]byte(err.Error()))
+		//		socketInterface.Close()
+		//		os.Exit(1)
+		//	}
+
+		// Start go routines to connect pipes & move data:
+		//	var routineErr error
+		//	var commandPending bool = false
+
+		//	// Go routine for using io.Copy to copy pty fd to socket:
+		//	go func() {
+		//		_, err := io.Copy()
+		//	}(socketWriter, shellInterface.PTY)
+
+		// STDOUT:::
+		// go func(stdout *io.ReadCloser, socket *io.Writer) {
+		// 	_, err := io.Copy(*socket, *stdout)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
+		// 		return
+		// 	}
+		// 	commandPending = false
+		// }(stdoutReader, socketWriter)
+
+		// // STDERR:::
+		// go func(stderr *io.ReadCloser, socket *io.Writer) {
+		// 	_, err := io.Copy(*socket, *stderr)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
+		// 		return
+		// 	}
+		// 	commandPending = false
+		// }(stderrReader, socketWriter)
+
+		// // STDIN:::
+		// go func(socket *io.Reader, stdin *io.WriteCloser) {
+		// 	commandPending = true
+		// 	_, err := io.Copy(*stdin, *socket)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
+		// 		return
+		// 	}
+		// }(socketReader, stdinWriter)
+
+		// For loop which checks for an error captured in go routines.
+		//...... If there is no error, then a small timeout prevents the process from lagging:
+		//for {
+		//if routineErr != nil {
+		//// Send the error msg down the socket, then exit quitely:
+		//socketInterface.Write([]byte(routineErr.Error()))
+		//os.Exit(1)
+		//}
+
+		//// if commandPending {
+		//// 	// Timeout:
+		//// 	time.Sleep(69 * time.Millisecond)
+		//// }
+		//}
 	} else {
 		// Go routines to read user input:
 		readUserInput := func(c chan<- string) {

@@ -15,18 +15,18 @@ import (
 )
 
 // Interface used to blueprint the RealShell struct & eventually TestShell struct:
-type ShellInterface interface {
-	StartShell() error
-	GetStdoutReader() (io.ReadCloser, error)
-	GetStderrReader() (io.ReadCloser, error)
-	GetStdinWriter() (io.WriteCloser, error)
-}
+//type ShellInterface interface {
+//	StartShell() error
+//	GetStdoutReader() (*io.ReadCloser, error)
+//	GetStderrReader() (*io.ReadCloser, error)
+//	GetStdinWriter() (*io.WriteCloser, error)
+//}
 
-type ShellGetter interface {
-	// Used to check the real (RealShellGetter) & test (TestShellGetter) structs:
-	// GetOffenseInitiatedShell() ShellInterface // Return RealShell OR TestShell, blueprinted against BashShell interface: <-------- eventually this will be a thing
-	GetConnectBackInitiatedShell() (ShellInterface, error)
-}
+//type ShellGetter interface {
+//	// Used to check the real (RealShellGetter) & test (TestShellGetter) structs:
+//	// GetOffenseInitiatedShell() ShellInterface // Return RealShell OR TestShell, blueprinted against BashShell interface: <-------- eventually this will be a thing
+//	GetConnectBackInitiatedShell() (ShellInterface, error)
+//}
 
 // REAL code:
 type RealShellGetter struct {
@@ -36,6 +36,7 @@ type RealShellGetter struct {
 // Holds the REAL shell process/ Cmd struct (from exec pkg):
 type RealShell struct {
 	Shell *exec.Cmd
+	//PTY   *os.File
 }
 
 /*....... TO DO .......
@@ -46,7 +47,8 @@ type RealShell struct {
  .................... */
 
 // Get shell for CB-initiated peer:
-func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
+// func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
+func (g RealShellGetter) GetConnectBackInitiatedShell() (*RealShell, error) {
 	// If bash exists on the system, find it, save the path:
 	var pointerToShell *RealShell
 
@@ -56,84 +58,102 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) 
 	}
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--noprofile", "--norc", "-i", "-s")}
+	//	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--noprofile", "--norc", "-i", "-s")}
+	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--norc", "-s")}
+	prompt := `PS1=\[\e]0;\u@\h: \w\a\]\[\033[;94m\]┌──${debian_chroot:+($debian_chroot)──}${VIRTUAL_ENV:+(\[\033[0;1m\]$(basename $VIRTUAL_ENV)\[\033[;94m\])}(\[\033[1;31m\]\u㉿\h\[\033[;94m\])-[\[\033[0;1m\]\w\[\033[;94m\]]\n\[\033[;94m\]└─\[\033[1;31m\]\$\[\033[0m\]`
 
-	cmd := pointerToShell
-	cmd.Shell.Env = append(cmd.Shell.Environ(), "PS1=tiddies")
+	cmd := *pointerToShell
+	cmd.Shell.Env = append(cmd.Shell.Environ(), prompt)
+
 	// Get the pointer to the shell process and & return it:
 	return pointerToShell, nil
 }
 
-func (s *RealShell) GetStdoutReader() (io.ReadCloser, error) {
+func (s *RealShell) GetStdoutReader() (*io.ReadCloser, error) {
 	readCloser, err := s.Shell.StdoutPipe()
-	return readCloser, err
+	return &readCloser, err
 }
 
-func (s *RealShell) GetStderrReader() (io.ReadCloser, error) {
+func (s *RealShell) GetStderrReader() (*io.ReadCloser, error) {
 	readCloser, err := s.Shell.StderrPipe()
-	return readCloser, err
+	return &readCloser, err
 }
 
-func (s *RealShell) GetStdinWriter() (io.WriteCloser, error) {
+func (s *RealShell) GetStdinWriter() (*io.WriteCloser, error) {
 	writeCloser, err := s.Shell.StdinPipe()
-	return writeCloser, err
+	return &writeCloser, err
 }
 
 // This essentially wraps the actual exec.Cmd.Start() method:
 func (s *RealShell) StartShell() error {
+	// get pseudoterminal device file pair:
+	//	ptmx, pts, err := pty.GetPseudoterminalDevices()
+	//	if err != nil {
+	//		return err
+	//	}
+
+	// use io.Copy to connect pts to bash process:
+
 	// Start the shell:
 	var erR error = s.Shell.Start()
+	// shellDeref :=  *s.Shell
+	//
+	//	ptyFile, ptyErr := pty.Start(s.Shell)
+	//	s.PTY = ptyFile
+	//
+	//	return ptyErr
 	return erR
 }
 
 // TEST code:
-type TestShellGetter struct {
-	//
-}
+// type TestShellGetter struct {
+// 	//
+// }
 
-type TestShell struct {
-	Path   string
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-}
+// type TestShell struct {
+// 	Path   string
+// 	Stdin  io.Reader
+// 	Stdout io.Writer
+// 	Stderr io.Writer
+// }
 
-func (g TestShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
-	var fakePath string = "/bin/tiddies"
-	var fakeStdin io.Reader
-	var fakeStdout io.Writer
-	var fakeStderr io.Writer
-	var fakeErr error
+// func (g TestShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
+// 	var fakePath string = "/bin/tiddies"
+// 	var fakeStdin io.Reader
+// 	var fakeStdout io.Writer
+// 	var fakeStderr io.Writer
+// 	var fakeErr error
 
-	var fakeShell TestShell = TestShell{Path: fakePath, Stdin: fakeStdin, Stdout: fakeStdout, Stderr: fakeStderr}
+// 	var fakeShell TestShell = TestShell{Path: fakePath, Stdin: fakeStdin, Stdout: fakeStdout, Stderr: fakeStderr}
+// 	var fakePointerToShell *TestShell = &fakeShell
 
-	return &fakeShell, fakeErr
-}
+// 	return fakePointerToShell, fakeErr
+// }
 
-func (s *TestShell) GetStdoutReader() (io.ReadCloser, error) {
-	var fakeReadCloser io.ReadCloser
-	var fakeError error
+// func (s *TestShell) GetStdoutReader() (*io.ReadCloser, error) {
+// 	var fakeReadCloser io.ReadCloser
+// 	var fakeError error
 
-	return fakeReadCloser, fakeError
-}
+// 	return &fakeReadCloser, fakeError
+// }
 
-func (s *TestShell) GetStderrReader() (io.ReadCloser, error) {
-	var fakeReadCloser io.ReadCloser
-	var fakeError error
+// func (s *TestShell) GetStderrReader() (*io.ReadCloser, error) {
+// 	var fakeReadCloser io.ReadCloser
+// 	var fakeError error
 
-	return fakeReadCloser, fakeError
-}
+// 	return &fakeReadCloser, fakeError
+// }
 
-func (s *TestShell) GetStdinWriter() (io.WriteCloser, error) {
-	var fakeWriteCloser io.WriteCloser
-	var fakeError error
+// func (s *TestShell) GetStdinWriter() (*io.WriteCloser, error) {
+// 	var fakeWriteCloser io.WriteCloser
+// 	var fakeError error
 
-	return fakeWriteCloser, fakeError
-}
+// 	return &fakeWriteCloser, fakeError
+// }
 
-func (s *TestShell) StartShell() error {
-	var fakeErr error
-	fakeErr = nil
+// func (s *TestShell) StartShell() error {
+// 	var fakeErr error
+// 	fakeErr = nil
 
-	return fakeErr
-}
+// 	return fakeErr
+// }
