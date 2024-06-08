@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 	"time"
@@ -23,7 +22,6 @@ func Run(c conn.ConnectionGetter) {
 		shellToClose  *shell.RealShell
 		filesToClose  []*os.File
 	}
-
 	var closeUs closers
 
 	// Parse flags from user, attach to struct:
@@ -194,6 +192,43 @@ func Run(c conn.ConnectionGetter) {
 		//								(even though it was the opposite case for the connect back peer).
 		// ...........................
 
+		// Make channels for reaading from user & socket
+		// .... & defer their close until Run() returns:
+		userInputChan := make(chan string)
+		socketDataChan := make(chan []byte)
+		readSocketCloseSignalChan := make(chan bool)
+		readUserInputCloseSignalChan := make(chan bool)
+
+		// Call this so we can close channels in case of other error during
+		// .... main for select loop:
+		nonSneakyExit := func(err error) {
+			// Might be over kill, but send signal to routines,
+			// .... then close channels:
+			readSocketCloseSignalChan <- true
+			readUserInputCloseSignalChan <- true
+
+			// Close all channels:
+			close(readSocketCloseSignalChan)
+			close(readUserInputCloseSignalChan)
+			close(userInputChan)
+			close(socketDataChan)
+
+			// Close socket:
+			socketInterface.Close()
+
+			// Now exit:
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(69)
+		}
+
+		// But still defer...
+		defer func() {
+			readSocketCloseSignalChan <- true
+			readUserInputCloseSignalChan <- true
+
+			nonSneakyExit(fmt.Errorf("Closing out of defer block\n"))
+		}()
+
 		// Go routine to read user input:
 		readUserInput := func(c chan<- string, stopSignalChan <-chan bool) {
 			// For loop starts, when there is user input
@@ -209,7 +244,9 @@ func Run(c conn.ConnectionGetter) {
 					userReader := bufio.NewReader(os.Stdin)
 					userInput, err := userReader.ReadString('\n')
 					if err != nil {
-						log.Fatalf("Error reading input from user: %v\n", err)
+						customErr := fmt.Errorf("Error reading input from user: %v\n", err)
+						nonSneakyExit(customErr)
+						return
 					}
 					c <- userInput
 				}
@@ -237,7 +274,9 @@ func Run(c conn.ConnectionGetter) {
 						if errors.Is(err, io.EOF) {
 							continue
 						} else {
-							log.Fatalf("Error reading data from socket: %v\n", err)
+							customErr := fmt.Errorf("Error reading data from socket: %v\n", err)
+							nonSneakyExit(customErr)
+							return
 						}
 					}
 				}
@@ -251,7 +290,9 @@ func Run(c conn.ConnectionGetter) {
 			if len(data) > 0 {
 				_, erR := socketInterface.Write([]byte(data))
 				if erR != nil {
-					log.Fatalf("Error writing user input buffer to socket: %v\n", erR)
+					customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
+					nonSneakyExit(customErr)
+					return
 				}
 			}
 		}
@@ -263,29 +304,14 @@ func Run(c conn.ConnectionGetter) {
 			if len(data) > 0 {
 				_, err := os.Stdout.Write(data)
 				if err != nil {
-					log.Fatalf("Error printing data to user: %v\n", err)
+					customErr := fmt.Errorf("Error printing data to user: %v\n", err)
+					nonSneakyExit(customErr)
+					return
 				}
 			}
 		}
 
 		// .......................... Read routines & channels ....................
-		// Make channels for reaading from user & socket
-		// .... & defer their close until Run() returns:
-		userInputChan := make(chan string)
-		socketDataChan := make(chan []byte)
-		readSocketCloseSignalChan := make(chan bool)
-		readUserInputCloseSignalChan := make(chan bool)
-		defer func() {
-			// Might be over kill, but send signal to routines,
-			// .... then close channels:
-			readSocketCloseSignalChan <- true
-			readUserInputCloseSignalChan <- true
-
-			close(readSocketCloseSignalChan)
-			close(readUserInputCloseSignalChan)
-			close(userInputChan)
-			close(socketDataChan)
-		}()
 
 		// Start go routines to read from socket and user:
 		go readSocket(socketInterface, socketDataChan, readSocketCloseSignalChan)
