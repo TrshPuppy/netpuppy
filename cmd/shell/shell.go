@@ -30,7 +30,7 @@ type RealShell struct {
 // func (g RealShellGetter) GetOffenseInitiatedShell() ShellInterface {
 //
 // }
- .................... */
+.................... */
 
 // Get shell for CB-initiated peer:
 func (g RealShellGetter) GetConnectBackInitiatedShell() (*RealShell, error) {
