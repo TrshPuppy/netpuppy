@@ -17,15 +17,17 @@ import (
 )
 
 func Run(c conn.ConnectionGetter) {
+	// Parse flags from user, attach to struct:
+	flagStruct := utils.GetFlags()
+
+	// This struct is being used in sneakyExit() (when there is a rev shell)
+	// .... so we can close things (since os.Exit() doesn't run defer statements)
 	type closers struct {
 		socketToClose conn.SocketInterface
 		shellToClose  *shell.RealShell
 		filesToClose  []*os.File
 	}
 	var closeUs closers
-
-	// Parse flags from user, attach to struct:
-	flagStruct := utils.GetFlags()
 
 	// Create peer instance based on user input:
 	var thisPeer *conn.Peer = conn.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
@@ -46,8 +48,8 @@ func Run(c conn.ConnectionGetter) {
 	} else {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
-	defer socketInterface.Close()
 	closeUs.socketToClose = socketInterface
+	defer socketInterface.Close()
 
 	// If shell flag is true, start shell:
 	var shellInterface *shell.RealShell
@@ -114,9 +116,9 @@ func Run(c conn.ConnectionGetter) {
 			customErr := fmt.Errorf("Error starting shell: %v\n", err)
 			sneakyExit(customErr, closeUs)
 		}
+		closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
 		defer master.Close()
 		defer pts.Close()
-		closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
 
 		// Hook up slave/pts device to bash process:
 		// .... (literally just point it to the file descriptors)
@@ -131,9 +133,9 @@ func Run(c conn.ConnectionGetter) {
 			customErr := fmt.Errorf("Error starting shell: %v\n", err)
 			sneakyExit(customErr, closeUs)
 		}
+		closeUs.shellToClose = shellInterface
 		defer shellInterface.Shell.Process.Release()
 		defer shellInterface.Shell.Process.Kill()
-		closeUs.shellToClose = shellInterface
 
 		var routineErr error
 		commandPending := true
