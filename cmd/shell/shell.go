@@ -36,7 +36,6 @@ type RealShellGetter struct {
 // Holds the REAL shell process/ Cmd struct (from exec pkg):
 type RealShell struct {
 	Shell *exec.Cmd
-	//PTY   *os.File
 }
 
 /*....... TO DO .......
@@ -58,7 +57,6 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() (*RealShell, error) {
 	}
 
 	// Initiate bShell with the struct & process created by exec.Command:
-	//	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--noprofile", "--norc", "-i", "-s")}
 	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--norc", "-s")}
 	prompt := `PS1=\[\e]0;\u@\h: \w\a\]\[\033[;94m\]┌──${debian_chroot:+($debian_chroot)──}${VIRTUAL_ENV:+(\[\033[0;1m\]$(basename $VIRTUAL_ENV)\[\033[;94m\])}(\[\033[1;31m\]\u㉿\h\[\033[;94m\])-[\[\033[0;1m\]\w\[\033[;94m\]]\n\[\033[;94m\]└─\[\033[1;31m\]\$\[\033[0m\]`
 
@@ -86,22 +84,8 @@ func (s *RealShell) GetStdinWriter() (*io.WriteCloser, error) {
 
 // This essentially wraps the actual exec.Cmd.Start() method:
 func (s *RealShell) StartShell() error {
-	// get pseudoterminal device file pair:
-	//	ptmx, pts, err := pty.GetPseudoterminalDevices()
-	//	if err != nil {
-	//		return err
-	//	}
-
-	// use io.Copy to connect pts to bash process:
-
 	// Start the shell:
 	var erR error = s.Shell.Start()
-	// shellDeref :=  *s.Shell
-	//
-	//	ptyFile, ptyErr := pty.Start(s.Shell)
-	//	s.PTY = ptyFile
-	//
-	//	return ptyErr
 	return erR
 }
 
