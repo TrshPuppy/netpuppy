@@ -16,9 +16,9 @@ import (
 
 // Use cgo to call unlockpt() which unlocks our pseudoterminal master/ slave pair:
 // ....... https://linux.die.net/man/3/unlockpt
-func UnlockPt(masterDevice *os.File) error {
+func UnlockPt(mdf *os.File) error {
 	var err error
-	ifd := masterDevice.Fd()
+	ifd := mdf.Fd()
 
 	success := C.unlock(C.ulong(ifd))
 	if success != 0 {
