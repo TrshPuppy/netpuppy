@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"time"
@@ -41,14 +40,17 @@ func Run(c conn.ConnectionGetter) {
 	} else {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
+	defer socketInterface.Close()
 
 	// If shell flag is true, start shell:
 	//	var shellInterface shell.ShellInterface
 	var shellInterface *shell.RealShell
 	var shellErr error
+
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		var realShellGetter shell.RealShellGetter
 		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
+
 		if shellErr != nil {
 			errString := "Error starting shell: " + shellErr.Error()
 			socketInterface.Write([]byte(errString))
@@ -57,13 +59,10 @@ func Run(c conn.ConnectionGetter) {
 		}
 	}
 
-	// Update banner w/ missing port:
-	// var missingPortInBanner = utils.PrintMissingPortToBanner(thisPeer.ConnectionType, thisPeer.Connection)
-	// fmt.Println(missingPortInBanner)
-
 	// Start SIGINT go routine & start channel to listen for SIGINT:
 	listenForSIGINT(socketInterface, thisPeer)
 
+	// ................................................. CONNECT-BACK w/ SHELL .................................................
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// Get pts and ptm device files:
@@ -87,9 +86,9 @@ func Run(c conn.ConnectionGetter) {
 		// Start shell:
 		err = shellInterface.StartShell()
 		if err != nil {
-			//			// Remember to close the device files:
-			//			pts.Close()
-			//			master.Close()
+			// Remember to close the device files:
+			pts.Close()
+			master.Close()
 
 			// Write error to socket, close socket, quit:
 			errString := "Error starting shell: " + err.Error()
@@ -98,11 +97,10 @@ func Run(c conn.ConnectionGetter) {
 			os.Exit(1)
 		}
 
-		// Attach master device to socket:
 		var routineErr error
 		commandPending := true
 
-		// Write output from master device to socket:
+		// Copy output from master device to socket:
 		go func(socket conn.SocketInterface, master *os.File) {
 			_, err := io.Copy(*socket.GetWriter(), master)
 			if err != nil {
@@ -112,12 +110,12 @@ func Run(c conn.ConnectionGetter) {
 			commandPending = false
 		}(socketInterface, master)
 
-		// Write output from socket to master device:
+		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
 			commandPending = true
 			_, err := io.Copy(master, *socket.GetReader())
 			if err != nil {
-				routineErr = fmt.Errorf("Error socket to master device: %v\n", err)
+				routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
 				return
 			}
 		}(socketInterface, master)
@@ -125,6 +123,10 @@ func Run(c conn.ConnectionGetter) {
 		for {
 			if routineErr != nil {
 				// Send error through socket, then quit:
+				// Remember to close the device files:
+				pts.Close()
+				master.Close()
+
 				socketInterface.Write([]byte(routineErr.Error()))
 				socketInterface.Close()
 				os.Exit(1)
@@ -132,178 +134,128 @@ func Run(c conn.ConnectionGetter) {
 
 			if commandPending {
 				// Timeout:
-				time.Sleep(399 * time.Millisecond)
+				time.Sleep(3 * time.Millisecond)
 			}
 		}
-		// Get POINTERS to readers & writers for shell & socket to give to io.Copy:
-		/*
-
-			4/4/24: TP U ARE HERE!
-			 - need to figure out how to make io.Reader/Writer
-			 	out of PTMx & PTS device files for io.Copy
-			 - maybe look into golang fs instead?
-			 - or ioctl
-			 - or os.OPEN_FILE_SOMEHOW_TO_GET_READ/WRITERS
-
-		*/
-		// var socketReader *io.Reader = socketInterface.GetReader()
-		// var socketWriter *io.Writer = socketInterface.GetWriter()
-
-		// stdoutReader, er_ := shellInterface.GetStdoutReader()
-		// if er_ != nil {
-		// 	socketInterface.Write([]byte(er_.Error()))
-		// 	socketInterface.Close()
-		// 	os.Exit(1)
-		// }
-
-		// stderrReader, e_r := shellInterface.GetStderrReader()
-		// if e_r != nil {
-		// 	socketInterface.Write([]byte(e_r.Error()))
-		// 	socketInterface.Close()
-		// 	os.Exit(1)
-		// }
-
-		// stdinWriter, _rr := shellInterface.GetStdinWriter()
-		// if _rr != nil {
-		// 	socketInterface.Write([]byte(_rr.Error()))
-		// 	socketInterface.Close()
-		// 	os.Exit(1)
-		// }
-
-		// Start the shell:
-		//	err = shellInterface.StartShell()
-		//	if err != nil {
-		//		// Since we have the socket, send the error thru the socket then quit (ooh sneaky!):
-		//		socketInterface.Write([]byte(err.Error()))
-		//		socketInterface.Close()
-		//		os.Exit(1)
-		//	}
-
-		// Start go routines to connect pipes & move data:
-		//	var routineErr error
-		//	var commandPending bool = false
-
-		//	// Go routine for using io.Copy to copy pty fd to socket:
-		//	go func() {
-		//		_, err := io.Copy()
-		//	}(socketWriter, shellInterface.PTY)
-
-		// STDOUT:::
-		// go func(stdout *io.ReadCloser, socket *io.Writer) {
-		// 	_, err := io.Copy(*socket, *stdout)
-		// 	if err != nil {
-		// 		routineErr = fmt.Errorf("Error copying stdout to socket: %v\n", err)
-		// 		return
-		// 	}
-		// 	commandPending = false
-		// }(stdoutReader, socketWriter)
-
-		// // STDERR:::
-		// go func(stderr *io.ReadCloser, socket *io.Writer) {
-		// 	_, err := io.Copy(*socket, *stderr)
-		// 	if err != nil {
-		// 		routineErr = fmt.Errorf("Error copying stderr to socket: %v\n", err)
-		// 		return
-		// 	}
-		// 	commandPending = false
-		// }(stderrReader, socketWriter)
-
-		// // STDIN:::
-		// go func(socket *io.Reader, stdin *io.WriteCloser) {
-		// 	commandPending = true
-		// 	_, err := io.Copy(*stdin, *socket)
-		// 	if err != nil {
-		// 		routineErr = fmt.Errorf("Error copying socket to stdin: %v\n", err)
-		// 		return
-		// 	}
-		// }(socketReader, stdinWriter)
-
-		// For loop which checks for an error captured in go routines.
-		//...... If there is no error, then a small timeout prevents the process from lagging:
-		//for {
-		//if routineErr != nil {
-		//// Send the error msg down the socket, then exit quitely:
-		//socketInterface.Write([]byte(routineErr.Error()))
-		//os.Exit(1)
-		//}
-
-		//// if commandPending {
-		//// 	// Timeout:
-		//// 	time.Sleep(69 * time.Millisecond)
-		//// }
-		//}
 	} else {
-		// Go routines to read user input:
-		readUserInput := func(c chan<- string) {
+		// ................................................. OG STRAT .................................................
+		// ............................ This is for the listener peer;
+		//								We have 4 go routines, one for reading input from the user,
+		//								one for reading the socket, one for writing to the socket,
+		//								and one for printing socket output to the user.
+		//
+		//								There are 2 channels. We use a case select block to check
+		//								the channels for data. One channel has user input, the other
+		//								has socket data. If there is data in either, then we call either
+		//								writeToSocket() or printToUser(). If there isn't data in either,
+		//								we timeout for 69 (nice) milliseconds.
+		//
+		//								This strat seems to run more smoothly than the io.Copy() strat below
+		//								(even though it was the opposite case for the connect back peer).
+		// ...........................
+
+		// Go routine to read user input:
+		readUserInput := func(c chan<- string, stopSignalChan <-chan bool) {
+			// For loop starts, when there is user input
+			// .... (they type and then press Enter [which is a bug btw])
+			// .... the input is sent into the userInput channel as a string.
 			for {
-				userReader := bufio.NewReader(os.Stdin)
-				userInput, err := userReader.ReadString('\n')
-				if err != nil {
-					log.Fatalf("Error reading input from user: %v\n", err)
+				select {
+				case stopSignal := <-stopSignalChan:
+					if stopSignal {
+						return
+					}
+				default:
+					userReader := bufio.NewReader(os.Stdin)
+					userInput, err := userReader.ReadString('\n')
+					if err != nil {
+						log.Fatalf("Error reading input from user: %v\n", err)
+					}
+					c <- userInput
 				}
-				c <- userInput
 			}
 		}
 
-		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte) {
-			// Read data in socket:
+		// Go routine to read data from socket:
+		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte, stopSignalChan <-chan bool) {
+			// For loop starts & we try to read the socket,
+			// .... if there is data, we put it in the dataReadFromSocket channel.
+			// .... If there is an error, we check the error type
+			// .... (to handle EOF since we don't care about EOF)
 			for {
-				dataReadFromSocket, err := socketInterface.Read()
-				if len(dataReadFromSocket) > 0 {
-					c <- dataReadFromSocket
-				}
-				if err != nil {
-					//Check for timeout error using net pkg:
-					//....... (type assertion checks if 'err' uses net.Error interface)
-					//....... (( isANetError will be true if it is using the net.Error interface))
-					netErr, isANetError := err.(net.Error)
-					if isANetError && netErr.Timeout() {
-						// If the socket timed out, have to set read deadline again (or connection will close):
-						continue
-					} else if errors.Is(err, io.EOF) {
-						continue
-					} else {
-						log.Fatalf("Error reading data from socket: %v\n", err)
+				select {
+				case stopSignal := <-stopSignalChan:
+					if stopSignal {
+						return
+					}
+				default:
+					dataReadFromSocket, err := socketInterface.Read()
+					if len(dataReadFromSocket) > 0 {
+						c <- dataReadFromSocket
+					}
+					if err != nil {
+						if errors.Is(err, io.EOF) {
+							continue
+						} else {
+							log.Fatalf("Error reading data from socket: %v\n", err)
+						}
 					}
 				}
 			}
 		}
 
-		// Write go routines
+		// Go routine to write to socket:
 		writeToSocket := func(data string, socketInterface conn.SocketInterface) {
-			// Check length so we can clear channel, but not send blank data:
+			// Called from the select block (user has entered input)
+			// .... Check length so we can clear channel, but not send blank data:
 			if len(data) > 0 {
 				_, erR := socketInterface.Write([]byte(data))
 				if erR != nil {
 					log.Fatalf("Error writing user input buffer to socket: %v\n", erR)
 				}
 			}
-			return
 		}
 
+		// Go routine to print data from socket to user:
 		printToUser := func(data []byte) {
-			// Check the length:
+			// Called from the select block (data has come in from the socket)
+			// .... Check the length:
 			if len(data) > 0 {
 				_, err := os.Stdout.Write(data)
 				if err != nil {
 					log.Fatalf("Error printing data to user: %v\n", err)
 				}
 			}
-			return
 		}
 
-		// Make channels & defer their close until Run() returns:
+		// .......................... Read routines & channels ....................
+		// Make channels for reaading from user & socket
+		// .... & defer their close until Run() returns:
 		userInputChan := make(chan string)
 		socketDataChan := make(chan []byte)
+		readSocketCloseSignalChan := make(chan bool)
+		readUserInputCloseSignalChan := make(chan bool)
 		defer func() {
+			// Might be over kill, but send signal to routines,
+			// .... then close channels:
+			readSocketCloseSignalChan <- true
+			readUserInputCloseSignalChan <- true
+
+			close(readSocketCloseSignalChan)
+			close(readUserInputCloseSignalChan)
 			close(userInputChan)
 			close(socketDataChan)
 		}()
 
 		// Start go routines to read from socket and user:
-		go readSocket(socketInterface, socketDataChan)
-		go readUserInput(userInputChan)
+		go readSocket(socketInterface, socketDataChan, readSocketCloseSignalChan)
+		go readUserInput(userInputChan, readUserInputCloseSignalChan)
+		// .........................................................................
 
+		// This for loop uses a select block to check the channels from the read routines,
+		// .... if either channel has data in it, then we call the write routines
+		// .... which write to the socket OR print to the user
+		// .... otherwise, we timeout.
 		for {
 			select {
 			case dataFromUser := <-userInputChan:
@@ -315,6 +267,58 @@ func Run(c conn.ConnectionGetter) {
 				time.Sleep(69 * time.Millisecond)
 			}
 		}
+
+		// ................................................. IO COPY STRAT .................................................
+		// ................................ This accomplishes the same as the OG STRAT (above)
+		//									but for some reason is way slower and laggier...
+		//									Not sure why since I also use this strat on the
+		//    								connect-back/ rev-shell peer and it really *seemed*
+		//									to help with speed & smooth output.
+		//
+		//									Anyway, instead of using channels and go routines,
+		//									we just directly hook up the various pipes using
+		//									io.Copy. We don't intercept or read the data passing
+		//									between them at all.
+		// ................................
+
+		// // If we are not the connect-back peer, we are the listener peer:
+		// // Start go routines to read from socket and user:
+		// //writingToSocket := false
+		// var routineErr error
+
+		// // Copy output from socket to Stdout:
+		// go func(socket conn.SocketInterface, osStdout *os.File) {
+		// 	_, err := io.Copy(osStdout, *socket.GetReader())
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying socket to Stdout: %v\n", err)
+		// 		return
+		// 	}
+		// 	// writingToSocket = false
+		// }(socketInterface, os.Stdout)
+
+		// // Copy input from Stdin to socket:
+		// go func(socket conn.SocketInterface, osStdin *os.File) {
+		// 	_, err := io.Copy(*socket.GetWriter(), osStdin)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying Stdin to socket: %v\n", err)
+		// 		return
+		// 	}
+		// 	// writingToSocket = true
+		// }(socketInterface, os.Stdin)
+
+		// for {
+		// 	if routineErr != nil {
+		// 		// Send error through socket, then quit:
+		// 		socketInterface.Write([]byte(routineErr.Error()))
+		// 		socketInterface.Close()
+		// 		os.Exit(1)
+		// 	}
+
+		// 	// if writingToSocket {
+		// 	// 	// Timeout:
+		// 	// 	time.Sleep(3 * time.Millisecond)
+		// 	// }
+		// }
 	}
 }
 
@@ -325,6 +329,11 @@ func listenForSIGINT(connection conn.SocketInterface, thisPeer *conn.Peer) { // 
 
 	go func() {
 		for sig := range signalChan {
+			fmt.Printf("Signal: %v\n", sig)
+
+			// Maybe have a check here to send the signal to the socket
+			// .... rather than quit netpuppy (since the user could be trying)
+			// .... to send a signal to the rev shell
 			if sig.String() == "interrupt" {
 				if !thisPeer.Shell {
 					fmt.Printf("signal: %v\n", sig)
