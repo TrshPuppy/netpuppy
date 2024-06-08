@@ -124,15 +124,6 @@ func Run(c conn.ConnectionGetter) {
 		shellInterface.Shell.Stdout = pts
 		shellInterface.Shell.Stderr = pts
 
-		/*
-			when nbash starts a subprocess, listen for that
-			then reset pts to the new file descriptors of the subprocess
-			- background the original process?
-			- foreground new subprocess?
-
-			How check for new subprocess?
-		*/
-
 		// Start bash:
 		err = shellInterface.StartShell()
 		if err != nil {
