@@ -4,7 +4,6 @@ import (
 	"os"
 )
 
-// func Start(c *exec.Cmd) error {
 func GetPseudoterminalDevices() (*os.File, *os.File, error) {
 	mDevice, sDevice, err := Start()
 
