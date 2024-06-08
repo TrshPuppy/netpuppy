@@ -124,7 +124,16 @@ func Run(c conn.ConnectionGetter) {
 		shellInterface.Shell.Stdout = pts
 		shellInterface.Shell.Stderr = pts
 
-		// Start shell:
+		/*
+			when nbash starts a subprocess, listen for that
+			then reset pts to the new file descriptors of the subprocess
+			- background the original process?
+			- foreground new subprocess?
+
+			How check for new subprocess?
+		*/
+
+		// Start bash:
 		err = shellInterface.StartShell()
 		if err != nil {
 			// Write error to socket, close socket, quit:
@@ -140,7 +149,7 @@ func Run(c conn.ConnectionGetter) {
 
 		// Copy output from master device to socket:
 		go func(socket conn.SocketInterface, master *os.File) {
-			_, err := io.Copy(*socket.GetWriter(), master)
+			_, err := io.Copy(socket.GetWriter(), master)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
 				return
@@ -151,13 +160,14 @@ func Run(c conn.ConnectionGetter) {
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
 			commandPending = true
-			_, err := io.Copy(master, *socket.GetReader())
+			_, err := io.Copy(master, socket.GetReader())
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
 				return
 			}
 		}(socketInterface, master)
 
+		// Start for loop with timeout to keep things running smoothly:
 		for {
 			// If one of the go routine catches an error,
 			// .... then send that error to sneakyExit()

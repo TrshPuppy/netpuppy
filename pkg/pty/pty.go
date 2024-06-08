@@ -5,7 +5,6 @@ import (
 )
 
 func GetPseudoterminalDevices() (*os.File, *os.File, error) {
-	// Given the *exec.Cmd, we should start and return the PTYs and PTYmx:
 	mDevice, sDevice, err := Start()
 
 	return mDevice, sDevice, err

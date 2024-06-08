@@ -12,21 +12,8 @@ package shell
 import (
 	"io"
 	"os/exec"
+	"syscall"
 )
-
-// Interface used to blueprint the RealShell struct & eventually TestShell struct:
-//type ShellInterface interface {
-//	StartShell() error
-//	GetStdoutReader() (*io.ReadCloser, error)
-//	GetStderrReader() (*io.ReadCloser, error)
-//	GetStdinWriter() (*io.WriteCloser, error)
-//}
-
-//type ShellGetter interface {
-//	// Used to check the real (RealShellGetter) & test (TestShellGetter) structs:
-//	// GetOffenseInitiatedShell() ShellInterface // Return RealShell OR TestShell, blueprinted against BashShell interface: <-------- eventually this will be a thing
-//	GetConnectBackInitiatedShell() (ShellInterface, error)
-//}
 
 // REAL code:
 type RealShellGetter struct {
@@ -46,7 +33,6 @@ type RealShell struct {
  .................... */
 
 // Get shell for CB-initiated peer:
-// func (g RealShellGetter) GetConnectBackInitiatedShell() (ShellInterface, error) {
 func (g RealShellGetter) GetConnectBackInitiatedShell() (*RealShell, error) {
 	// If bash exists on the system, find it, save the path:
 	var pointerToShell *RealShell
@@ -60,8 +46,12 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() (*RealShell, error) {
 	pointerToShell = &RealShell{Shell: exec.Command(bashPath, "--norc", "-s")}
 	prompt := `PS1=\[\e]0;\u@\h: \w\a\]\[\033[;94m\]┌──${debian_chroot:+($debian_chroot)──}${VIRTUAL_ENV:+(\[\033[0;1m\]$(basename $VIRTUAL_ENV)\[\033[;94m\])}(\[\033[1;31m\]\u㉿\h\[\033[;94m\])-[\[\033[0;1m\]\w\[\033[;94m\]]\n\[\033[;94m\]└─\[\033[1;31m\]\$\[\033[0m\]`
 
+	// Get cmd and set prompt and the setsid properties on it:
 	cmd := *pointerToShell
 	cmd.Shell.Env = append(cmd.Shell.Environ(), prompt)
+	cmd.Shell.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true,
+	}
 
 	// Get the pointer to the shell process and & return it:
 	return pointerToShell, nil
