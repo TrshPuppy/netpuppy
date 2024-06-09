@@ -51,7 +51,7 @@ func Run(c conn.ConnectionGetter) {
 	closeUs.socketToClose = socketInterface
 	defer socketInterface.Close()
 
-	// If shell flag is true, start shell:
+	// If shell flag is true, get shell cmd (to start later)
 	var shellInterface *shell.RealShell
 	var shellErr error
 
@@ -273,6 +273,7 @@ func Run(c conn.ConnectionGetter) {
 					if len(dataReadFromSocket) > 0 {
 						c <- dataReadFromSocket
 					}
+
 					if err != nil {
 						if errors.Is(err, io.EOF) {
 							continue

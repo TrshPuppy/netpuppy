@@ -76,6 +76,8 @@ func (s *RealShell) GetStdinWriter() (*io.WriteCloser, error) {
 func (s *RealShell) StartShell() error {
 	// Start the shell:
 	var erR error = s.Shell.Start()
+	// erR := fmt.Errorf("tiddies")
+
 	return erR
 }
 
