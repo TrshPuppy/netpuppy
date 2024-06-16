@@ -51,7 +51,7 @@ import (
 type SocketInterface interface {
 	// Used to check real (RealSocket) & test (TestSocket) structs
 	Read() ([]byte, error)
-	Write([]byte) (int, error)
+	WriteShit([]byte) (int, error)
 	Close() error
 	GetReader() io.Reader
 	GetWriter() io.Writer
@@ -84,7 +84,7 @@ func (s *RealSocket) Read() ([]byte, error) {
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
-func (s *RealSocket) Write(userInput []byte) (int, error) {
+func (s *RealSocket) WriteShit(userInput []byte) (int, error) {
 	var writeSuccess int
 	var err error
 
@@ -115,10 +115,20 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string,
 	var err error
 	var pointerToRealSocket *RealSocket
 
-	remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort))
+	// remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort))
+	remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort)) // Re-writing for DialTCP
+	// var laddr *net.TCPAddr
+	// var raddr *net.TCPAddr
+
+	// laddr.IP = {
+	// 	IP: "0.0.0.0", // gotta create a net.IP IP
+	// 	Port:
+	// 	// Zone:
+	// }
 
 	// Get client connectiokjn:
 	clientConnection, err = net.Dial("tcp", remoteHost)
+	//clientConnection, err = net.DialTCP("tcp", remoteHost)
 	if err != nil {
 		if !shell {
 			log.Fatalf("Error creating client connection (connection.go): %v\n", err)
@@ -175,7 +185,7 @@ func (i TestSocket) Read() ([]byte, error) {
 	return testByteArr, testErr
 }
 
-func (i TestSocket) Write([]byte) (int, error) {
+func (i TestSocket) WriteShit([]byte) (int, error) {
 	var testInt int = 22
 	var testErrorNil error = nil
 	return testInt, testErrorNil

