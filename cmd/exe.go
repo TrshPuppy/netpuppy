@@ -41,18 +41,18 @@ func (rc *ReadCounter) Read(dataInPipe []byte) (int, error) {
 	return bytesRead, err
 }
 
+// This struct is being used in sneakyExit() (when there is a rev shell)
+// .... so we can close things (since os.Exit() doesn't run defer statements)
+type Closers struct {
+	socketToClose conn.SocketInterface
+	shellToClose  *shell.RealShell
+	filesToClose  []*os.File
+}
+
 func Run(c conn.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
-
-	// This struct is being used in sneakyExit() (when there is a rev shell)
-	// .... so we can close things (since os.Exit() doesn't run defer statements)
-	type closers struct {
-		socketToClose conn.SocketInterface
-		shellToClose  *shell.RealShell
-		filesToClose  []*os.File
-	}
-	var closeUs closers
+	var closeUs Closers
 
 	// Create peer instance based on user input:
 	var thisPeer *conn.Peer = conn.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
@@ -101,7 +101,7 @@ func Run(c conn.ConnectionGetter) {
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// First, make a function we can call which send errors into the socket
 		// .... & handles closing files, etc. before quitting (sneaky).
-		sneakyExit := func(err error, closeUs closers) {
+		sneakyExit := func(err error, closeUs Closers) {
 			// We are the rev-shell, let's limit output to stdout/err,
 			// .... so send error through socket, then quit:
 			socketPresent := closeUs.socketToClose != nil
@@ -127,7 +127,7 @@ func Run(c conn.ConnectionGetter) {
 			// If there are open files (in the list), close them:
 			if filesPresent {
 				for _, file := range closeUs.filesToClose {
-					fmt.Printf("Closing %v\n", file.Name())
+					// fmt.Printf("Closing %v\n", file.Name())
 					file.Close()
 				}
 			}
