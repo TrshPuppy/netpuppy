@@ -1,5 +1,10 @@
 package pty
 
+// #ifdef __linux__
+// #define _GNU_SOURCE
+// #else
+// #define _XOPEN_SOURCE 600
+// #endif
 // #include <stdlib.h>
 // #include <stdint.h>
 // #include <stdio.h>
