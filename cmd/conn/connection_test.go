@@ -86,7 +86,7 @@ func TestSocketWrite(t *testing.T) {
 	testWriteThis := []byte("tiddies")
 
 	expected := reflect.TypeOf(69)
-	writeReturn, err := fakeSocket.Write(testWriteThis)
+	writeReturn, err := fakeSocket.WriteShit(testWriteThis)
 	if err != nil {
 		t.Errorf("Test Write return - Got: %v, Expected: error\n", err)
 	}

