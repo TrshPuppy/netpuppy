@@ -1,4 +1,24 @@
 # NetPuppy
+```
+|8PPPPe
+|8    |8 |eeee |eeeee    ___      .++.
+|8e   |8 |8      |8   __/_, '.  .'    '. .
+|88   |8 |8eee   |8e  \_,  | \_'  /   )'-')
+|88   |8 |88     |88   U ) '-'    \  (('"'
+|88   |8 |88ee   |88   ___Y  ,    .'7 /|
+______________________(_,___/___.' (_/_/_
+|8PPPPe
+|8    |8 |e   .e |eeeee  |eeeee  |e   .e
+|8eeee8  |8   |8 |8   |8 |8   |8 |8   |8
+|88      |8e  |8 |8eee8  |8eee8  |8eee8
+|88      |88  |8 |88     |88      |88
+|88      |88ee8  |88     |88      |88
+________________________________________
+	
+	  Launch a puppy to
+   	~ sneef  and  fetch ~
+	  data   for   you! 
+```
 ### Say goodbye to that "`python -c import pty; pty.spawn('bash')`" bullsh*t!
 NetPuppy is a CLI tool for establishing a TCP connection b/w two peers with the option to start a stable reverse shell on one of them. NP does this by creating a pseudoterminal, so the shell experience is similar to telnet or (un-encrypted) SSH.
 
