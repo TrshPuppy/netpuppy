@@ -50,6 +50,7 @@ type Closers struct {
 }
 
 func Run(c conn.ConnectionGetter) {
+	fmt.Printf(utils.Trie())
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 	var closeUs Closers
@@ -99,7 +100,7 @@ func Run(c conn.ConnectionGetter) {
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-		// First, make a function we can call which send errors into the socket
+		// First, make a function we can call which sends errors into the socket
 		// .... & handles closing files, etc. before quitting (sneaky).
 		sneakyExit := func(err error, closeUs Closers) {
 			// We are the rev-shell, let's limit output to stdout/err,
@@ -127,7 +128,7 @@ func Run(c conn.ConnectionGetter) {
 			// If there are open files (in the list), close them:
 			if filesPresent {
 				for _, file := range closeUs.filesToClose {
-					// fmt.Printf("Closing %v\n", file.Name())
+					fmt.Printf("Closing %v\n", file.Name())
 					file.Close()
 				}
 			}
@@ -190,10 +191,9 @@ func Run(c conn.ConnectionGetter) {
 			_, err := io.Copy(master, socketReader)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
-				//fmt.Printf("Current read count: %v\n", socketReader.Count)
 				return
 			}
-			//fmt.Printf("Current read count: %v\n", socketReader.Count)
+
 			routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
 			return
 		}(socketInterface, master)
@@ -281,13 +281,15 @@ func Run(c conn.ConnectionGetter) {
 					}
 				default:
 					userReader := bufio.NewReader(os.Stdin)
-					userInput, err := userReader.ReadString('\n')
+					// userInput, err := userReader.ReadString('\n')
+					userInput, err := userReader.ReadByte()
 					if err != nil {
 						customErr := fmt.Errorf("Error reading input from user: %v\n", err)
 						nonSneakyExit(customErr)
 						return
 					}
-					c <- userInput
+					fmt.Printf("THE INPUT IS: %s\n", userInput)
+					//					c <- userInput
 				}
 			}
 		}
