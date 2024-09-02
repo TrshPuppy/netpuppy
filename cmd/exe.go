@@ -166,7 +166,6 @@ func Run(c conn.ConnectionGetter) {
 		defer shellInterface.Shell.Process.Kill()
 
 		var routineErr error
-		// commandPending := true
 
 		// Copy output from master device to socket:
 		go func(socket conn.SocketInterface, master *os.File) {
@@ -176,10 +175,8 @@ func Run(c conn.ConnectionGetter) {
 			_, err := io.Copy(copyCounter, master)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
-				// fmt.Printf("Current write count: %v\n", copyCounter.Count)
 				return
 			}
-			// fmt.Printf("Current write count: %v\n", copyCounter.Count)
 			routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
 			return
 		}(socketInterface, master)
@@ -187,17 +184,37 @@ func Run(c conn.ConnectionGetter) {
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
 			// Create ReadCounter instance:
-			socketReader := &ReadCounter{Reader: socket.GetReader()}
+			//socketReader := &ReadCounter{Reader: socket.GetReader()}
 
-			_, err := io.Copy(master, socketReader)
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
-				return
+			tempSocketReader := bufio.NewReader(socketInterface.GetReader())
+
+			for {
+				char, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := tempSocketReader.ReadByte()
+				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
+					fmt.Printf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
+					break
+				}
+
+				byteArr := make([]byte, 1)
+				byteArr = append(byteArr, char)
+				master.Write(byteArr)
 			}
-
-			routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
 			return
 		}(socketInterface, master)
+
+		// go func(socket conn.SocketInterface, master *os.File) {
+		// 	// Create ReadCounter instance:
+		// 	socketReader := &ReadCounter{Reader: socket.GetReader()}
+
+		// 	_, err := io.Copy(master, socketReader)
+		// 	if err != nil {
+		// 		routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
+		// 		return
+		// 	}
+
+		// 	routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
+		// 	return
+		// }(socketInterface, master)
 
 		// Start for loop with timeout to keep things running smoothly:
 		for {
@@ -285,7 +302,6 @@ func Run(c conn.ConnectionGetter) {
 			// Start for loop to read byte from stdin
 			for {
 				char, TIT_BY_BOO := reader.ReadByte()
-
 				if TIT_BY_BOO != nil {
 					// If there is nothing read from stdin, or the buffer is full, continue:
 					if errors.Is(TIT_BY_BOO, syscall.EAGAIN) || errors.Is(TIT_BY_BOO, syscall.EWOULDBLOCK) {
