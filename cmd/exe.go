@@ -251,7 +251,7 @@ func Run(c conn.ConnectionGetter) {
 
 		// Make channels for reaading from user & socket
 		// .... & defer their close until Run() returns:
-		userInputChan := make(chan byte)
+		userInputChan := make(chan []byte)
 		socketDataChan := make(chan []byte)
 		readSocketCloseSignalChan := make(chan bool)
 		readUserInputCloseSignalChan := make(chan bool)
@@ -287,7 +287,7 @@ func Run(c conn.ConnectionGetter) {
 		}()
 
 		// Go routine to read stdin byte by byte and send to uWu chan:
-		readUserInput := func(uWu chan<- byte) {
+		readUserInput := func(uWu chan<- []byte) {
 			// Change stdin fd to non-blocking:
 			fd := os.Stdin.Fd()
 			err := unix.SetNonblock(int(fd), true)
@@ -296,12 +296,9 @@ func Run(c conn.ConnectionGetter) {
 				nonSneakyExit(customErr)
 			}
 
-			// Create reader for stdin:
-			reader := bufio.NewReader(os.Stdin)
-
-			// Start for loop to read byte from stdin
+			buffer := make([]byte, 1024)
 			for {
-				char, TIT_BY_BOO := reader.ReadByte()
+				char, TIT_BY_BOO := os.Stdin.Read(buffer)
 				if TIT_BY_BOO != nil {
 					// If there is nothing read from stdin, or the buffer is full, continue:
 					if errors.Is(TIT_BY_BOO, syscall.EAGAIN) || errors.Is(TIT_BY_BOO, syscall.EWOULDBLOCK) {
@@ -315,15 +312,9 @@ func Run(c conn.ConnectionGetter) {
 				}
 
 				// Send the char down the socket
-				uWu <- char
+				uWu <- buffer[:char]
 			}
 
-			// Reset stdin to blocking:
-			err = unix.SetNonblock(int(fd), false)
-			if err != nil {
-				customErr := fmt.Errorf("Error: unable to set non blocking: %v\n", err)
-				nonSneakyExit(customErr)
-			}
 			return
 		}
 
@@ -359,14 +350,10 @@ func Run(c conn.ConnectionGetter) {
 		}
 
 		// Go routine to write to socket:
-		writeToSocket := func(data byte, socketInterface conn.SocketInterface) {
+		writeToSocket := func(data []byte, socketInterface conn.SocketInterface) {
 			// Called from the select block (user has entered input)
 			// .... Check length so we can clear channel, but not send blank data:
-			//TEMP
-			temp := make([]byte, 1)
-			temp = append(temp, data)
-			//...
-			_, erR := socketInterface.WriteShit(temp)
+			_, erR := socketInterface.WriteShit(data)
 			if erR != nil {
 				customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
 				nonSneakyExit(customErr)
