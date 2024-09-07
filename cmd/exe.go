@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -183,21 +182,15 @@ func Run(c conn.ConnectionGetter) {
 
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
-			// Create ReadCounter instance:
-			//socketReader := &ReadCounter{Reader: socket.GetReader()}
-
-			tempSocketReader := bufio.NewReader(socketInterface.GetReader())
-
+			// Use Read method on socket to read into a buffer of 1024, and get the indexed content:
 			for {
-				char, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := tempSocketReader.ReadByte()
+				socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
 				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
 					fmt.Printf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
 					break
 				}
 
-				byteArr := make([]byte, 1)
-				byteArr = append(byteArr, char)
-				master.Write(byteArr)
+				master.Write(socketContent)
 			}
 			return
 		}(socketInterface, master)

@@ -2,7 +2,6 @@ package main
 
 import (
 	// NetPuppy pkgs:
-
 	"github.com/trshpuppy/netpuppy/cmd"
 	"github.com/trshpuppy/netpuppy/cmd/conn"
 )
