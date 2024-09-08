@@ -84,11 +84,11 @@ func (s *RealSocket) Read() ([]byte, error) {
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
-func (s *RealSocket) WriteShit(userInput []byte) (int, error) {
+func (s *RealSocket) WriteShit(input []byte) (int, error) {
 	var writeSuccess int
 	var err error
 
-	writeSuccess, err = s.Socket.Write(userInput)
+	writeSuccess, err = s.Socket.Write(input)
 	return writeSuccess, err
 }
 
@@ -117,18 +117,9 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string,
 
 	// remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort))
 	remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort)) // Re-writing for DialTCP
-	// var laddr *net.TCPAddr
-	// var raddr *net.TCPAddr
-
-	// laddr.IP = {
-	// 	IP: "0.0.0.0", // gotta create a net.IP IP
-	// 	Port:
-	// 	// Zone:
-	// }
 
 	// Get client connectiokjn:
 	clientConnection, err = net.Dial("tcp", remoteHost)
-	//clientConnection, err = net.DialTCP("tcp", remoteHost)
 	if err != nil {
 		if !shell {
 			log.Fatalf("Error creating client connection (connection.go): %v\n", err)
@@ -148,7 +139,6 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
-	//var pointerToRealSocket *RealSocket
 
 	// Listener created first:
 	listener, err1 := net.Listen("tcp", localPort)

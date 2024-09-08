@@ -168,16 +168,40 @@ func Run(c conn.ConnectionGetter) {
 
 		// Copy output from master device to socket:
 		go func(socket conn.SocketInterface, master *os.File) {
+
+			//....................... BYTE BY BYTE
+			// .....................
+			// for {
+			// 	// Make 1 byte buffer
+			// 	buf := make([]byte, 1)
+
+			// 	// Read 1 byte from master file into buffer
+			// 	_, err = master.Read(buf)
+			// 	if err != nil {
+			// 		routineErr = fmt.Errorf("Error reading byte from master file: %v\n", err)
+			// 		sneakyExit(routineErr, closeUs)
+			// 		break
+			// 	}
+
+			// 	// Write buffer into socket
+			// 	_, err = socket.WriteShit(buf)
+			// 	if err != nil {
+			// 		routineErr = fmt.Errorf("Error writing buffer from master to socket: %v\n", err)
+			// 		sneakyExit(routineErr, closeUs)
+			// 		break
+			// 	}
+			// }
+			// .....................
+			// ..................... BYTE BY BYTE END
+
 			// Create instance of WriteCounter for io.Copy (dest arg):
 			copyCounter := &WriteCooter{Writer: socket.GetWriter()}
-
 			_, err := io.Copy(copyCounter, master)
 			if err != nil {
 				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+				sneakyExit(routineErr, closeUs)
 				return
 			}
-			routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
-			return
 		}(socketInterface, master)
 
 		// Copy output from socket to master device:
@@ -186,28 +210,14 @@ func Run(c conn.ConnectionGetter) {
 			for {
 				socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
 				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
-					fmt.Printf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
-					break
+					routineErr = fmt.Errorf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
+					sneakyExit(routineErr, closeUs)
+					return
 				}
 
 				master.Write(socketContent)
 			}
-			return
 		}(socketInterface, master)
-
-		// go func(socket conn.SocketInterface, master *os.File) {
-		// 	// Create ReadCounter instance:
-		// 	socketReader := &ReadCounter{Reader: socket.GetReader()}
-
-		// 	_, err := io.Copy(master, socketReader)
-		// 	if err != nil {
-		// 		routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
-		// 		return
-		// 	}
-
-		// 	routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
-		// 	return
-		// }(socketInterface, master)
 
 		// Start for loop with timeout to keep things running smoothly:
 		for {
@@ -216,9 +226,11 @@ func Run(c conn.ConnectionGetter) {
 			if routineErr != nil {
 				// Send error through socket, then quit:
 				sneakyExit(routineErr, closeUs)
+				return
 			} else {
 				// Timeout:
 				time.Sleep(3 * time.Millisecond)
+				//continue
 			}
 
 		}
@@ -244,7 +256,7 @@ func Run(c conn.ConnectionGetter) {
 
 		// Make channels for reaading from user & socket
 		// .... & defer their close until Run() returns:
-		userInputChan := make(chan []byte)
+		uWu := make(chan []byte) // userInputChan
 		socketDataChan := make(chan []byte)
 		readSocketCloseSignalChan := make(chan bool)
 		readUserInputCloseSignalChan := make(chan bool)
@@ -260,7 +272,7 @@ func Run(c conn.ConnectionGetter) {
 			// Close all channels:
 			close(readSocketCloseSignalChan)
 			close(readUserInputCloseSignalChan)
-			close(userInputChan)
+			close(uWu)
 			close(socketDataChan)
 
 			// Close socket:
@@ -283,15 +295,18 @@ func Run(c conn.ConnectionGetter) {
 		readUserInput := func(uWu chan<- []byte) {
 			// Change stdin fd to non-blocking:
 			fd := os.Stdin.Fd()
+
 			err := unix.SetNonblock(int(fd), true)
 			if err != nil {
 				customErr := fmt.Errorf("Error: unable to set non blocking: %v\n", err)
 				nonSneakyExit(customErr)
 			}
 
-			buffer := make([]byte, 1024)
+			buffer := make([]byte, 1)
+
+			// Read Stdin in a for loop, byte by byte...
 			for {
-				char, TIT_BY_BOO := os.Stdin.Read(buffer)
+				i, TIT_BY_BOO := os.Stdin.Read(buffer)
 				if TIT_BY_BOO != nil {
 					// If there is nothing read from stdin, or the buffer is full, continue:
 					if errors.Is(TIT_BY_BOO, syscall.EAGAIN) || errors.Is(TIT_BY_BOO, syscall.EWOULDBLOCK) {
@@ -305,9 +320,8 @@ func Run(c conn.ConnectionGetter) {
 				}
 
 				// Send the char down the socket
-				uWu <- buffer[:char]
+				uWu <- buffer[:i]
 			}
-
 			return
 		}
 
@@ -374,7 +388,7 @@ func Run(c conn.ConnectionGetter) {
 		go readSocket(socketInterface, socketDataChan, readSocketCloseSignalChan)
 		//		go readUserInput(userInputChan, readUserInputCloseSignalChan)
 
-		go readUserInput(userInputChan)
+		go readUserInput(uWu)
 		// .........................................................................
 
 		// This for loop uses a select block to check the channels from the read routines,
@@ -383,7 +397,9 @@ func Run(c conn.ConnectionGetter) {
 		// .... otherwise, we timeout.
 		for {
 			select {
-			case dataFromUser := <-userInputChan:
+			case dataFromUser := <-uWu:
+				fmt.Printf("received byte from uWu-chan: %b\n", dataFromUser)
+
 				go writeToSocket(dataFromUser, socketInterface)
 			case dataFromSocket := <-socketDataChan:
 				go printToUser(dataFromSocket)
