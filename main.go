@@ -2,8 +2,6 @@ package main
 
 import (
 	// NetPuppy pkgs:
-	"syscall"
-
 	"github.com/trshpuppy/netpuppy/cmd"
 	"github.com/trshpuppy/netpuppy/cmd/conn"
 )
@@ -24,33 +22,4 @@ func main() {
 
 	var connection conn.RealConnectionGetter
 	cmd.Run(connection)
-}
-
-// Trying to turn off terminal echo
-func enableRawModeEcho() {
-
-	// Use tcgetattr to get current settings:
-	currentSettings := getOGState(syscall.Stdin)
-
-}
-
-func getOGState(stdinFd int) {
-	// get the OG values for stdin termios
-	currentTermAttrs, err := tcgetattr(stdinFd)
-	if err != nil {
-
-	}
-}
-
-func tcgetattr(stdinfd int) {
-	// Create Termios instance:
-	var raw syscall.Termios
-	var termPtr *syscall.Termios
-
-	//  Use ioctl syscall w/ TCGETS   = 0x5401 op code to get the current terminal attributes
-	successInt, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(stdinfd), syscall.TCGETS, &raw)
-	if err != nil {
-
-	}
-
 }

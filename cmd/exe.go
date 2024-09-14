@@ -12,6 +12,7 @@ import (
 	// NetPuppy pkgs:
 	"github.com/trshpuppy/netpuppy/cmd/conn"
 	"github.com/trshpuppy/netpuppy/cmd/shell"
+	"github.com/trshpuppy/netpuppy/pkg/ioctl"
 	"github.com/trshpuppy/netpuppy/pkg/pty"
 	"github.com/trshpuppy/netpuppy/utils"
 	"golang.org/x/sys/unix"
@@ -66,6 +67,15 @@ func Run(c conn.ConnectionGetter) {
 		var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
 		fmt.Println(updateUserBanner)
 	}
+
+	// Enable Raw Mode:
+	oGTermios, err := ioctl.EnableRawMode(syscall.Stdin)
+	if err != 0 {
+		fmt.Printf("Error enabling raw mode: %v\n", err)
+		os.Exit(1)
+	}
+	// Use the oGTermios structure w/ a defer of DisableRawMode() to reset the terminal before exiting:
+	defer ioctl.DisableRawMode(syscall.Stdin, oGTermios)
 
 	// Make connection:
 	var socketInterface conn.SocketInterface
