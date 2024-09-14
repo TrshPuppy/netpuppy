@@ -115,7 +115,6 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string,
 	var err error
 	var pointerToRealSocket *RealSocket
 
-	// remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort))
 	remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort)) // Re-writing for DialTCP
 
 	// Get client connectiokjn:
