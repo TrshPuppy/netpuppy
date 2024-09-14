@@ -18,22 +18,8 @@ func EnableRawMode(stdinFd int) (*syscall.Termios, syscall.Errno) {
 	//... set the Termios flags for raw mode, then give the new termios to tcsetattr() wrapper
 	ogTerm := *currentTerm
 
-	// Raw mode
-	//    cfmakeraw() sets the terminal to something like the "raw" mode of
-	//    the old Version 7 terminal driver: input is available character
-	//    by character, echoing is disabled, and all special processing of
-	//    terminal input and output characters is disabled.  The terminal
-	//    attributes are set as follows:
-
-	//        termios_p->c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
-	//                        | INLCR | IGNCR | ICRNL | IXON);
-	//        termios_p->c_oflag &= ~OPOST;
-	//        termios_p->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
-	//        termios_p->c_cflag &= ~(CSIZE | PARENB);
-	//        termios_p->c_cflag |= CS8;
-
-	currentTerm.Iflag &^= syscall.IXON | syscall.ICRNL                 // input processing
-	currentTerm.Oflag &^= syscall.OPOST                                // output processing
+	currentTerm.Iflag &^= syscall.IXON | syscall.ICRNL // input processing
+	//currentTerm.Oflag &^= syscall.OPOST                                // output processing
 	currentTerm.Lflag &^= syscall.ICANON | syscall.ECHO | syscall.ISIG // disable canonical mode, echo, and signals
 
 	// Now that we've set the properties we want, pass the altered termios structure to the

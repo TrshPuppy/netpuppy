@@ -15,7 +15,6 @@ import (
 	"github.com/trshpuppy/netpuppy/pkg/ioctl"
 	"github.com/trshpuppy/netpuppy/pkg/pty"
 	"github.com/trshpuppy/netpuppy/utils"
-	"golang.org/x/sys/unix"
 )
 
 // WRITECOOTER STAYS!!!!! TO COMMEMORATE THE DUMBEST BUG I'VE EVER PERSONALLY ENCOUNTERED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -49,6 +48,7 @@ type Closers struct {
 	socketToClose conn.SocketInterface
 	shellToClose  *shell.RealShell
 	filesToClose  []*os.File
+	termiosToFix  *syscall.Termios
 }
 
 func Run(c conn.ConnectionGetter) {
@@ -67,15 +67,6 @@ func Run(c conn.ConnectionGetter) {
 		var updateUserBanner string = utils.UserSelectionBanner(thisPeer.ConnectionType, thisPeer.Address, thisPeer.RPort, thisPeer.LPort)
 		fmt.Println(updateUserBanner)
 	}
-
-	// Enable Raw Mode:
-	oGTermios, err := ioctl.EnableRawMode(syscall.Stdin)
-	if err != 0 {
-		fmt.Printf("Error enabling raw mode: %v\n", err)
-		os.Exit(1)
-	}
-	// Use the oGTermios structure w/ a defer of DisableRawMode() to reset the terminal before exiting:
-	defer ioctl.DisableRawMode(syscall.Stdin, oGTermios)
 
 	// Make connection:
 	var socketInterface conn.SocketInterface
@@ -288,6 +279,11 @@ func Run(c conn.ConnectionGetter) {
 			// Close socket:
 			socketInterface.Close()
 
+			// Disable Raw Mode:
+			if closeUs.termiosToFix != nil {
+				ioctl.DisableRawMode(syscall.Stdin, closeUs.termiosToFix)
+			}
+
 			// Now exit:
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(69)
@@ -301,36 +297,35 @@ func Run(c conn.ConnectionGetter) {
 			nonSneakyExit(fmt.Errorf("Closing out of defer block\n"))
 		}()
 
+		// Enable Raw Mode:
+		oGTermios, err := ioctl.EnableRawMode(syscall.Stdin)
+		if err != 0 {
+			fmt.Printf("Error enabling raw mode: %v\n", err)
+			os.Exit(1)
+		}
+		// Use the oGTermios structure w/ a defer of DisableRawMode() to reset the terminal before exiting:
+		defer ioctl.DisableRawMode(syscall.Stdin, oGTermios)
+		closeUs.termiosToFix = oGTermios
+
 		// Go routine to read stdin byte by byte and send to uWu chan:
 		readUserInput := func(uWu chan<- []byte) {
-			// Change stdin fd to non-blocking:
-			fd := os.Stdin.Fd()
-
-			err := unix.SetNonblock(int(fd), true)
-			if err != nil {
-				customErr := fmt.Errorf("Error: unable to set non blocking: %v\n", err)
-				nonSneakyExit(customErr)
-			}
-
 			buffer := make([]byte, 1)
 
 			// Read Stdin in a for loop, byte by byte...
 			for {
 				i, TIT_BY_BOO := os.Stdin.Read(buffer)
 				if TIT_BY_BOO != nil {
-					// If there is nothing read from stdin, or the buffer is full, continue:
-					if errors.Is(TIT_BY_BOO, syscall.EAGAIN) || errors.Is(TIT_BY_BOO, syscall.EWOULDBLOCK) {
-						continue
-					}
-
-					// If the error is io.EOF, stdin has ended and we can break the for loop:
 					if errors.Is(TIT_BY_BOO, io.EOF) {
+						continue
+					} else {
+						fmt.Printf("Error reading from stdin: %v\n", TIT_BY_BOO)
 						break
 					}
 				}
 
 				// Send the char down the socket
 				uWu <- buffer[:i]
+				//fmt.Printf("> %v\n", buffer[:i])
 			}
 			return
 		}
@@ -392,14 +387,9 @@ func Run(c conn.ConnectionGetter) {
 			}
 		}
 
-		// .......................... Read routines & channels ....................
-
 		// Start go routines to read from socket and user:
 		go readSocket(socketInterface, socketDataChan, readSocketCloseSignalChan)
-		//		go readUserInput(userInputChan, readUserInputCloseSignalChan)
-
 		go readUserInput(uWu)
-		// .........................................................................
 
 		// This for loop uses a select block to check the channels from the read routines,
 		// .... if either channel has data in it, then we call the write routines
@@ -408,7 +398,7 @@ func Run(c conn.ConnectionGetter) {
 		for {
 			select {
 			case dataFromUser := <-uWu:
-				fmt.Printf("received byte from uWu-chan: %b\n", dataFromUser)
+				//fmt.Printf("received byte from uWu-chan: %b\n", dataFromUser)
 
 				go writeToSocket(dataFromUser, socketInterface)
 			case dataFromSocket := <-socketDataChan:
