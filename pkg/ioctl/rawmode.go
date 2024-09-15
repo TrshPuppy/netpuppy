@@ -1,7 +1,6 @@
 package ioctl
 
 import (
-	"os"
 	"syscall"
 	"unsafe"
 )
@@ -45,13 +44,11 @@ func tcGetAttr(stdinFd int) (*syscall.Termios, syscall.Errno) {
 	return &currentTerm, errno
 }
 
-func DisableRawMode(stdinFd int, termios *syscall.Termios) {
+func DisableRawMode(stdinFd int, termios *syscall.Termios) syscall.Errno {
 	// Use the tcsetattr() wrapper to reset the terminal to it's original state
 	//... (using the attributes we saved in EnableRawMode)
 	errno := tcSetAttr(stdinFd, termios)
-	if errno != 0 {
-		os.Exit(8008)
-	}
+	return errno
 }
 
 func tcSetAttr(stdinFd int, termios *syscall.Termios) syscall.Errno {

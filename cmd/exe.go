@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	// NetPuppy pkgs:
 	"github.com/trshpuppy/netpuppy/cmd/conn"
@@ -46,10 +45,62 @@ func (rc *ReadCounter) Read(dataInPipe []byte) (int, error) {
 // This struct is being used in sneakyExit() (when there is a rev shell)
 // .... so we can close things (since os.Exit() doesn't run defer statements)
 type Closers struct {
-	socketToClose conn.SocketInterface
-	shellToClose  *shell.RealShell
-	filesToClose  []*os.File
-	termiosToFix  *syscall.Termios
+	socketToClose       conn.SocketInterface
+	shellToClose        *shell.RealShell
+	filesToClose        []*os.File
+	byteChannelsToClose []chan []byte
+	termiosToFix        *syscall.Termios
+}
+
+// First, make a function we can call which sends errors into the socket
+// .... & handles closing files, etc. before quitting (sneaky).
+func sneakyExit(err error, closeUs Closers) {
+	// We are the rev-shell, let's limit output to stdout/err,
+	// .... so send error through socket, then quit:
+	socketPresent := closeUs.socketToClose != nil
+	shellPresent := closeUs.shellToClose != nil
+	filesPresent := len(closeUs.filesToClose) > 0
+	byteChannelsPresent := len(closeUs.byteChannelsToClose) > 0
+	errMsg := err.Error()
+
+	// Send error, then close socket:
+	if socketPresent {
+		// We could maybe send a custom signal to tell the other peer to close immediately...
+		// .... [[instead of it continuing to try to use the socket]]
+		closeUs.socketToClose.WriteShit([]byte(errMsg))
+		closeUs.socketToClose.Close()
+	} else {
+		fmt.Printf("Sneaky exit error: %v\n", errMsg)
+	} // error goes into void otherwise
+
+	// Kill the rev-shell process:
+	if shellPresent {
+		closeUs.shellToClose.Shell.Process.Release()
+		closeUs.shellToClose.Shell.Process.Kill()
+	}
+
+	// If there are open files (in the list), close them:
+	if filesPresent {
+		for _, file := range closeUs.filesToClose {
+			fmt.Printf("Closing %v\n", file.Name())
+			file.Close()
+		}
+	}
+
+	// If tehre are open channels, close them:
+	if byteChannelsPresent {
+		for _, ch := range closeUs.byteChannelsToClose {
+			close(ch)
+		}
+	}
+
+	// If the termios struct is present: disable raw mode
+	if closeUs.termiosToFix != nil {
+		ioctl.DisableRawMode(syscall.Stdin, closeUs.termiosToFix)
+	}
+
+	// K, now we can quietly die
+	os.Exit(69)
 }
 
 func Run(c conn.ConnectionGetter) {
@@ -71,10 +122,15 @@ func Run(c conn.ConnectionGetter) {
 
 	// Make connection:
 	var socketInterface conn.SocketInterface
+	var err error
 	if thisPeer.ConnectionType == "offense" {
-		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
+		socketInterface, err = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
 	} else {
-		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
+		socketInterface, err = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
+	}
+	if err != nil {
+		sneakyExit(err, closeUs)
+		return
 	}
 	closeUs.socketToClose = socketInterface
 	defer socketInterface.Close()
@@ -82,16 +138,16 @@ func Run(c conn.ConnectionGetter) {
 	// If shell flag is true, get shell cmd (to start later)
 	var shellInterface *shell.RealShell
 	var shellErr error
+	closeUs.shellToClose = shellInterface
 
 	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
 		var realShellGetter shell.RealShellGetter
 		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
 
 		if shellErr != nil {
-			errString := "Error starting shell: " + shellErr.Error()
-			socketInterface.WriteShit([]byte(errString))
-			socketInterface.Close()
-			os.Exit(1)
+			customErr := fmt.Errorf("Error starting the rev shell process: %v\n", shellErr)
+			sneakyExit(customErr, closeUs)
+			return
 		}
 	}
 
@@ -102,47 +158,51 @@ func Run(c conn.ConnectionGetter) {
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
 	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-		// First, make a function we can call which sends errors into the socket
-		// .... & handles closing files, etc. before quitting (sneaky).
-		sneakyExit := func(err error, closeUs Closers) {
-			// We are the rev-shell, let's limit output to stdout/err,
-			// .... so send error through socket, then quit:
-			socketPresent := closeUs.socketToClose != nil
-			shellPresent := closeUs.shellToClose != nil
-			filesPresent := len(closeUs.filesToClose) > 0
+		// // First, make a function we can call which sends errors into the socket
+		// // .... & handles closing files, etc. before quitting (sneaky).
+		// sneakyExit := func(err error, closeUs Closers) {
+		// 	// We are the rev-shell, let's limit output to stdout/err,
+		// 	// .... so send error through socket, then quit:
+		// 	socketPresent := closeUs.socketToClose != nil
+		// 	shellPresent := closeUs.shellToClose != nil
+		// 	filesPresent := len(closeUs.filesToClose) > 0
 
-			errMsg := err.Error()
+		// 	errMsg := err.Error()
 
-			// Send error, then close socket:
-			if socketPresent {
-				// We could maybe send a custom signal to tell the other peer to close immediately...
-				// .... [[instead of it continuing to try to use the socket]]
-				socketInterface.WriteShit([]byte(errMsg))
-				closeUs.socketToClose.Close()
-			}
+		// 	// Send error, then close socket:
+		// 	if socketPresent {
+		// 		// We could maybe send a custom signal to tell the other peer to close immediately...
+		// 		// .... [[instead of it continuing to try to use the socket]]
+		// 		socketInterface.WriteShit([]byte(errMsg))
+		// 		closeUs.socketToClose.Close()
+		// 	}
 
-			// Kill the rev-shell process:
-			if shellPresent {
-				shellInterface.Shell.Process.Release()
-				shellInterface.Shell.Process.Kill()
-			}
+		// 	// Kill the rev-shell process:
+		// 	if shellPresent {
+		// 		shellInterface.Shell.Process.Release()
+		// 		shellInterface.Shell.Process.Kill()
+		// 	}
 
-			// If there are open files (in the list), close them:
-			if filesPresent {
-				for _, file := range closeUs.filesToClose {
-					fmt.Printf("Closing %v\n", file.Name())
-					file.Close()
-				}
-			}
+		// 	// If there are open files (in the list), close them:
+		// 	if filesPresent {
+		// 		for _, file := range closeUs.filesToClose {
+		// 			fmt.Printf("Closing %v\n", file.Name())
+		// 			file.Close()
+		// 		}
+		// 	}
 
-			// K, now we can quietly die
-			os.Exit(69)
-		}
+		// 	// K, now we can quietly die
+		// 	os.Exit(69)
+		// }
 
 		// Get pts and ptm device files (for pseudoterminal):
 		master, pts, err := pty.GetPseudoterminalDevices()
 		if err != nil {
 			customErr := fmt.Errorf("Error starting shell: %v\n", err)
+
+			if master != nil {
+				closeUs.filesToClose = append(closeUs.filesToClose, master)
+			}
 			sneakyExit(customErr, closeUs)
 		}
 		closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
@@ -161,8 +221,9 @@ func Run(c conn.ConnectionGetter) {
 			// Write error to socket, close socket, quit:
 			customErr := fmt.Errorf("Error starting shell: %v\n", err)
 			sneakyExit(customErr, closeUs)
+			return
 		}
-		closeUs.shellToClose = shellInterface
+		// closeUs.shellToClose = shellInterface
 		defer shellInterface.Shell.Process.Release()
 		defer shellInterface.Shell.Process.Kill()
 
@@ -209,40 +270,35 @@ func Run(c conn.ConnectionGetter) {
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
 			// Use Read method on socket to read into a buffer of 1024, and get the indexed content:
-			_, err := io.Copy(master, socket.GetReader())
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
-				sneakyExit(routineErr, closeUs)
-				return
-			}
-
-			// for {
-			// socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
-			// if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
-			// 	routineErr = fmt.Errorf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
+			// _, err := io.Copy(master, socket.GetReader())
+			// if err != nil {
+			// 	routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
 			// 	sneakyExit(routineErr, closeUs)
 			// 	return
 			// }
 
-			// master.Write(socketContent)
-			//}
+			for {
+				socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
+				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
+					routineErr = fmt.Errorf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
+					sneakyExit(routineErr, closeUs)
+					return
+				}
+
+				master.Write(socketContent)
+			}
 		}(socketInterface, master)
 
 		// Start for loop with timeout to keep things running smoothly:
-		for {
-			// If one of the go routine catches an error,
-			// .... then send that error to sneakyExit()
-			if routineErr != nil {
-				// Send error through socket, then quit:
-				sneakyExit(routineErr, closeUs)
-				return
-			} else {
-				// Timeout:
-				time.Sleep(3 * time.Millisecond)
-				//continue
-			}
-
-		}
+		// for {
+		// 	// If one of the go routine catches an error,
+		// 	// .... then send that error to sneakyExit()
+		// 	if routineErr != nil {
+		// 		// Send error through socket, then quit:
+		// 		sneakyExit(routineErr, closeUs)
+		// 		return
+		// 	}
+		// }
 	} else {
 		// ................................................. OFFENSIVE SERVER .................................................
 		// ... (or connect-back peer w/o shell flag)
@@ -267,42 +323,43 @@ func Run(c conn.ConnectionGetter) {
 		// .... & defer their close until Run() returns:
 		uWu := make(chan []byte) // userInputChan
 		socketDataChan := make(chan []byte)
-		readSocketCloseSignalChan := make(chan bool)
-		readUserInputCloseSignalChan := make(chan bool)
+		closeUs.byteChannelsToClose = append(closeUs.byteChannelsToClose, uWu, socketDataChan)
+
+		// readSocketCloseSignalChan := make(chan bool)
+		// readUserInputCloseSignalChan := make(chan bool)
+		// closeUs.boolChannelsToClose = append(closeUs.boolChannelsToClose, readSocketCloseSignalChan, readSocketCloseSignalChan)
 
 		// Call this so we can close channels in case of other error during
 		// .... main for select loop:
-		nonSneakyExit := func(err error) {
-			// Might be over kill, but send signal to routines,
-			// .... then close channels:
-			readSocketCloseSignalChan <- true
-			readUserInputCloseSignalChan <- true
+		// nonSneakyExit := func(err error) {
+		// 	// Might be over kill, but send signal to routines,
+		// 	// .... then close channels:
+		// 	readSocketCloseSignalChan <- true
+		// 	readUserInputCloseSignalChan <- true
 
-			// Close all channels:
-			close(readSocketCloseSignalChan)
-			close(readUserInputCloseSignalChan)
-			close(uWu)
-			close(socketDataChan)
+		// 	// Close all channels:
+		// 	close(readSocketCloseSignalChan)
+		// 	close(readUserInputCloseSignalChan)
+		// 	close(uWu)
+		// 	close(socketDataChan)
 
-			// Close socket:
-			socketInterface.Close()
+		// 	// Close socket:
+		// 	socketInterface.Close()
 
-			// Disable Raw Mode:
-			if closeUs.termiosToFix != nil {
-				ioctl.DisableRawMode(syscall.Stdin, closeUs.termiosToFix)
-			}
+		// 	// Disable Raw Mode:
+		// 	if closeUs.termiosToFix != nil {
+		// 		ioctl.DisableRawMode(syscall.Stdin, closeUs.termiosToFix)
+		// 	}
 
-			// Now exit:
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(69)
-		}
+		// 	// Now exit:
+		// 	fmt.Printf("Error: %v\n", err)
+		// 	os.Exit(69)
+		// }
 
 		// But still defer...
 		defer func() {
-			readSocketCloseSignalChan <- true
-			readUserInputCloseSignalChan <- true
-
-			nonSneakyExit(fmt.Errorf("Closing out of defer block\n"))
+			// nonSneakyExit(fmt.Errorf("Closing out of defer block\n"))
+			sneakyExit(fmt.Errorf("Closing out of defer block\n"), closeUs)
 		}()
 
 		// Set non-blocking on STDIN
@@ -310,18 +367,31 @@ func Run(c conn.ConnectionGetter) {
 		err := unix.SetNonblock(stdinFd, true)
 		if err != nil {
 			customErr := fmt.Errorf("Error setting stdin to non-blocking: %v\n", err)
-			nonSneakyExit(customErr)
+			sneakyExit(customErr, closeUs)
 		}
 
 		// Enable Raw Mode:
 		oGTermios, errno := ioctl.EnableRawMode(syscall.Stdin)
 		if errno != 0 {
-			fmt.Printf("Error enabling raw mode: %v\n", err)
-			os.Exit(1)
+			customErr := fmt.Errorf("Error enabling termios raw mode")
+			sneakyExit(customErr, closeUs)
 		}
 		// Use the oGTermios structure w/ a defer of DisableRawMode() to reset the terminal before exiting:
 		defer ioctl.DisableRawMode(syscall.Stdin, oGTermios)
 		closeUs.termiosToFix = oGTermios
+
+		// Go routine to write to socket:
+		writeToSocket := func(data []byte, socket conn.SocketInterface) {
+			// Called from the select block (user has entered input)
+			// .... Check length so we can clear channel, but not send blank data:
+			_, erR := socketInterface.WriteShit(data)
+			if erR != nil {
+				customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
+				// nonSneakyExit(customErr)
+				sneakyExit(customErr, closeUs)
+				return
+			}
+		}
 
 		// Go routine to read stdin byte by byte and send to uWu chan:
 		readUserInput := func(uWu chan<- []byte) {
@@ -334,56 +404,42 @@ func Run(c conn.ConnectionGetter) {
 					if errors.Is(TIT_BY_BOO, io.EOF) {
 						continue
 					} else {
-						fmt.Printf("Error reading from stdin: %v\n", TIT_BY_BOO)
+						customErr := fmt.Errorf("Error reading from stdin: %v\n", TIT_BY_BOO)
+						sneakyExit(customErr, closeUs)
 						break
 					}
 				}
 
+				go writeToSocket(buffer[:i], socketInterface)
+				continue
 				// Send the char down the socket
-				uWu <- buffer[:i]
+				//uWu <- buffer[:i]
+				//fmt.Printf("> %s\n",buffer[:i] )
 			}
 		}
 
 		// Go routine to read data from socket:
-		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte, stopSignalChan <-chan bool) {
+		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte) {
 			// For loop starts & we try to read the socket,
 			// .... if there is data, we put it in the dataReadFromSocket channel.
 			// .... If there is an error, we check the error type
 			// .... (to handle EOF since we don't care about EOF)
 			for {
-				select {
-				case stopSignal := <-stopSignalChan:
-					if stopSignal {
+				dataReadFromSocket, err := socketInterface.Read()
+				if len(dataReadFromSocket) > 0 {
+					c <- dataReadFromSocket
+				}
+
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						continue
+					} else {
+						customErr := fmt.Errorf("Error reading data from socket: %v\n", err)
+						// nonSneakyExit(customErr)
+						sneakyExit(customErr, closeUs)
 						return
 					}
-				default:
-					dataReadFromSocket, err := socketInterface.Read()
-					if len(dataReadFromSocket) > 0 {
-						c <- dataReadFromSocket
-					}
-
-					if err != nil {
-						if errors.Is(err, io.EOF) {
-							continue
-						} else {
-							customErr := fmt.Errorf("Error reading data from socket: %v\n", err)
-							nonSneakyExit(customErr)
-							return
-						}
-					}
 				}
-			}
-		}
-
-		// Go routine to write to socket:
-		writeToSocket := func(data []byte, socket conn.SocketInterface) {
-			// Called from the select block (user has entered input)
-			// .... Check length so we can clear channel, but not send blank data:
-			_, erR := socketInterface.WriteShit(data)
-			if erR != nil {
-				customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
-				nonSneakyExit(customErr)
-				return
 			}
 		}
 
@@ -394,12 +450,12 @@ func Run(c conn.ConnectionGetter) {
 			_, err := os.Stdout.Write(data)
 			if err != nil {
 				customErr := fmt.Errorf("Error printing data to user: %v\n", err)
-				nonSneakyExit(customErr)
+				sneakyExit(customErr, closeUs)
 			}
 		}
 
 		// Start go routines to read from socket and user:
-		go readSocket(socketInterface, socketDataChan, readSocketCloseSignalChan)
+		go readSocket(socketInterface, socketDataChan)
 		go readUserInput(uWu)
 
 		// This for loop uses a select block to check the channels from the read routines,
@@ -407,12 +463,14 @@ func Run(c conn.ConnectionGetter) {
 		// .... which write to the socket OR print to the user
 		// .... otherwise, we timeout.
 		for {
-			select {
-			case dataFromUser := <-uWu:
-				go writeToSocket(dataFromUser, socketInterface)
-			case dataFromSocket := <-socketDataChan:
-				go printToUser(dataFromSocket)
-			}
+			dataFromSocket := <-uWu
+			go printToUser(dataFromSocket)
+			// select {
+			// case dataFromUser := <-uWu:
+			// 	go writeToSocket(dataFromUser, socketInterface)
+			// case dataFromSocket := <-socketDataChan:
+			// 	go printToUser(dataFromSocket)
+			// }
 		}
 	}
 }
