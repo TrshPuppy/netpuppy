@@ -117,6 +117,7 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string,
 	// Get client connectiokjn:
 	clientConnection, err = net.Dial("tcp", remoteHost)
 	if err != nil {
+		fmt.Printf("ERROR ON REV SHELL DIAL CONNECT: %v\n", err)
 		return nil, err
 	}
 
@@ -135,7 +136,8 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	// Listener created first:
 	listener, err1 := net.Listen("tcp", localPort)
 	if err1 != nil {
-		listener.Close()
+		fmt.Printf("ERROR IN LISTENER: %v\n", err1)
+		// listener.Close()
 		return nil, err
 	}
 
