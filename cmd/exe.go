@@ -15,6 +15,7 @@ import (
 	"github.com/trshpuppy/netpuppy/pkg/ioctl"
 	"github.com/trshpuppy/netpuppy/pkg/pty"
 	"github.com/trshpuppy/netpuppy/utils"
+	"golang.org/x/sys/unix"
 )
 
 // WRITECOOTER STAYS!!!!! TO COMMEMORATE THE DUMBEST BUG I'VE EVER PERSONALLY ENCOUNTERED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -208,16 +209,23 @@ func Run(c conn.ConnectionGetter) {
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File) {
 			// Use Read method on socket to read into a buffer of 1024, and get the indexed content:
-			for {
-				socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
-				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
-					routineErr = fmt.Errorf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
-					sneakyExit(routineErr, closeUs)
-					return
-				}
-
-				master.Write(socketContent)
+			_, err := io.Copy(master, socket.GetReader())
+			if err != nil {
+				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+				sneakyExit(routineErr, closeUs)
+				return
 			}
+
+			// for {
+			// socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
+			// if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
+			// 	routineErr = fmt.Errorf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
+			// 	sneakyExit(routineErr, closeUs)
+			// 	return
+			// }
+
+			// master.Write(socketContent)
+			//}
 		}(socketInterface, master)
 
 		// Start for loop with timeout to keep things running smoothly:
@@ -297,9 +305,17 @@ func Run(c conn.ConnectionGetter) {
 			nonSneakyExit(fmt.Errorf("Closing out of defer block\n"))
 		}()
 
+		// Set non-blocking on STDIN
+		stdinFd := syscall.Stdin
+		err := unix.SetNonblock(stdinFd, true)
+		if err != nil {
+			customErr := fmt.Errorf("Error setting stdin to non-blocking: %v\n", err)
+			nonSneakyExit(customErr)
+		}
+
 		// Enable Raw Mode:
-		oGTermios, err := ioctl.EnableRawMode(syscall.Stdin)
-		if err != 0 {
+		oGTermios, errno := ioctl.EnableRawMode(syscall.Stdin)
+		if errno != 0 {
 			fmt.Printf("Error enabling raw mode: %v\n", err)
 			os.Exit(1)
 		}
@@ -325,9 +341,7 @@ func Run(c conn.ConnectionGetter) {
 
 				// Send the char down the socket
 				uWu <- buffer[:i]
-				//fmt.Printf("> %v\n", buffer[:i])
 			}
-			return
 		}
 
 		// Go routine to read data from socket:
@@ -362,7 +376,7 @@ func Run(c conn.ConnectionGetter) {
 		}
 
 		// Go routine to write to socket:
-		writeToSocket := func(data []byte, socketInterface conn.SocketInterface) {
+		writeToSocket := func(data []byte, socket conn.SocketInterface) {
 			// Called from the select block (user has entered input)
 			// .... Check length so we can clear channel, but not send blank data:
 			_, erR := socketInterface.WriteShit(data)
@@ -377,13 +391,10 @@ func Run(c conn.ConnectionGetter) {
 		printToUser := func(data []byte) {
 			// Called from the select block (data has come in from the socket)
 			// .... Check the length:
-			if len(data) > 0 {
-				_, err := os.Stdout.Write(data)
-				if err != nil {
-					customErr := fmt.Errorf("Error printing data to user: %v\n", err)
-					nonSneakyExit(customErr)
-					return
-				}
+			_, err := os.Stdout.Write(data)
+			if err != nil {
+				customErr := fmt.Errorf("Error printing data to user: %v\n", err)
+				nonSneakyExit(customErr)
 			}
 		}
 
@@ -398,14 +409,12 @@ func Run(c conn.ConnectionGetter) {
 		for {
 			select {
 			case dataFromUser := <-uWu:
-				//fmt.Printf("received byte from uWu-chan: %b\n", dataFromUser)
-
 				go writeToSocket(dataFromUser, socketInterface)
 			case dataFromSocket := <-socketDataChan:
 				go printToUser(dataFromSocket)
 			default:
 				// Timeout:
-				time.Sleep(69 * time.Millisecond)
+				time.Sleep(3 * time.Millisecond)
 			}
 		}
 	}

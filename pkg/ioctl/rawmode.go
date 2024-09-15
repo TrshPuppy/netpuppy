@@ -18,8 +18,8 @@ func EnableRawMode(stdinFd int) (*syscall.Termios, syscall.Errno) {
 	//... set the Termios flags for raw mode, then give the new termios to tcsetattr() wrapper
 	ogTerm := *currentTerm
 
-	currentTerm.Iflag &^= syscall.IXON | syscall.ICRNL // input processing
-	//currentTerm.Oflag &^= syscall.OPOST                                // output processing
+	currentTerm.Iflag &^= syscall.IXON | syscall.ICRNL                 // input processing
+	currentTerm.Oflag &^= syscall.OPOST                                // output processing
 	currentTerm.Lflag &^= syscall.ICANON | syscall.ECHO | syscall.ISIG // disable canonical mode, echo, and signals
 
 	// Now that we've set the properties we want, pass the altered termios structure to the
