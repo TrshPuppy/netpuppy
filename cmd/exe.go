@@ -412,9 +412,6 @@ func Run(c conn.ConnectionGetter) {
 				go writeToSocket(dataFromUser, socketInterface)
 			case dataFromSocket := <-socketDataChan:
 				go printToUser(dataFromSocket)
-			default:
-				// Timeout:
-				time.Sleep(3 * time.Millisecond)
 			}
 		}
 	}
