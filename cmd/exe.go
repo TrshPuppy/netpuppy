@@ -204,89 +204,44 @@ func Run(c conn.ConnectionGetter) {
 
 		// Copy output from master device to socket:
 		go func(socket conn.SocketInterface, master *os.File, errorChan chan<- error) {
-			//....................... BYTE BY BYTE
-			// .....................
-			// for {
-			// 	// Make 1 byte buffer
-			// 	buf := make([]byte, 1)
-
-			// 	// Read 1 byte from master file into buffer
-			// 	_, err = master.Read(buf)
-			// 	if err != nil {
-			// 		routineErr = fmt.Errorf("Error reading byte from master file: %v\n", err)
-			// 		sneakyExit(routineErr, closeUs)
-			// 		break
-			// 	}
-
-			// 	// Write buffer into socket
-			// 	_, err = socket.WriteShit(buf)
-			// 	if err != nil {
-			// 		routineErr = fmt.Errorf("Error writing buffer from master to socket: %v\n", err)
-			// 		sneakyExit(routineErr, closeUs)
-			// 		break
-			// 	}
-			// }
-			// .....................
-			// ..................... BYTE BY BYTE END
-
 			// Create instance of WriteCounter for io.Copy (dest arg):
 			copyCounter := &WriteCooter{Writer: socket.GetWriter()}
 			_, err := io.Copy(copyCounter, master)
 			if err != nil {
-
 				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
 				errorChan <- routineErr
-				close(errorChan)
-				// sneakyExit(routineErr, closeUs)
-				// return
+				// close(errorChan)
 			}
 		}(socketInterface, master, errorChan1)
 
 		// Copy output from socket to master device:
 		go func(socket conn.SocketInterface, master *os.File, errorChan chan<- error) {
-			// Use Read method on socket to read into a buffer of 1024, and get the indexed content:
-			// _, err := io.Copy(master, socket.GetReader())
-			// if err != nil {
-			// 	routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
-			// 	sneakyExit(routineErr, closeUs)
-			// 	return
-			// }
-
 			for {
 				socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
 				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
 					routineErr = fmt.Errorf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
 					errorChan <- routineErr
-					close(errorChan)
-					// sneakyExit(routineErr, closeUs)
-					// return
+					// close(errorChan)
 				}
 				master.Write(socketContent)
 			}
 		}(socketInterface, master, errorChan2)
 
-		// ERROR CHAN SHIT
+		// Case select for the two error channels. If one has an error in it, close the other and sneaky exit:
 		select {
-		case err1 := <-errorChan1:
+		case err1, open1 := <-errorChan1:
+			if open1 {
+				close(errorChan1)
+			}
 			close(errorChan2)
 			sneakyExit(err1, closeUs)
-		case err2 := <-errorChan2:
+		case err2, open2 := <-errorChan2:
+			if open2 {
+				close(errorChan2)
+			}
 			close(errorChan1)
 			sneakyExit(err2, closeUs)
 		}
-
-		// Start for loop with timeout to keep things running smoothly:
-		// for {
-
-		// 	// If one of the go routine catches an error,
-		// 	// .... then send that error to sneakyExit()
-		// 	// if routineErr != nil {
-		// 	// 	// Send error through socket, then quit:
-		// 	// 	sneakyExit(routineErr, closeUs)
-		// 	// 	return
-		// 	// }
-
-		// }
 	} else {
 		// ................................................. OFFENSIVE SERVER .................................................
 		// ... (or connect-back peer w/o shell flag)
@@ -313,14 +268,6 @@ func Run(c conn.ConnectionGetter) {
 		socketDataChan := make(chan []byte)
 		closeUs.byteChannelsToClose = append(closeUs.byteChannelsToClose, uWu, socketDataChan)
 
-		// Set non-blocking on STDIN
-		// stdinFd := syscall.Stdin
-		// err := unix.SetNonblock(stdinFd, true)
-		// if err != nil {
-		// 	customErr := fmt.Errorf("Error setting stdin to non-blocking: %v\n", err)
-		// 	sneakyExit(customErr, closeUs)
-		// }
-
 		// Enable Raw Mode:
 		var errno syscall.Errno
 		var oGTermios *syscall.Termios
@@ -339,7 +286,7 @@ func Run(c conn.ConnectionGetter) {
 		writeToSocket := func(data []byte, socket conn.SocketInterface) {
 			// Called from the select block (user has entered input)
 			// .... Check length so we can clear channel, but not send blank data:
-			_, erR := socketInterface.WriteShit(data)
+			_, erR := socket.WriteShit(data)
 			if erR != nil {
 				customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
 				sneakyExit(customErr, closeUs)
@@ -364,7 +311,7 @@ func Run(c conn.ConnectionGetter) {
 					}
 				}
 
-				//go writeToSocket(buffer[:i], socketInterface)
+				// go writeToSocket(buffer[:i], socketInterface)
 				// Send the char down the socket
 				uWu <- buffer[:i]
 				//fmt.Printf("> %s\n",buffer[:i] )
