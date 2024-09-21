@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 
 	// NetPuppy pkgs:
 	"github.com/trshpuppy/netpuppy/cmd/conn"
+	"github.com/trshpuppy/netpuppy/cmd/hosts"
 	"github.com/trshpuppy/netpuppy/cmd/shell"
 	"github.com/trshpuppy/netpuppy/pkg/ioctl"
 	"github.com/trshpuppy/netpuppy/pkg/pty"
@@ -53,61 +55,77 @@ type Closers struct {
 
 // First, make a function we can call which sends errors into the socket
 // .... & handles closing files, etc. before quitting (sneaky).
-func sneakyExit(err error, closeUs Closers) {
-	fmt.Printf("Sneaky exit error: %v\n", err.Error())
-	// We are the rev-shell, let's limit output to stdout/err,
-	// .... so send error through socket, then quit:
-	socketPresent := closeUs.socketToClose != nil
-	shellPresent := closeUs.shellToClose != nil
-	filesPresent := len(closeUs.filesToClose) > 0
-	byteChannelsPresent := len(closeUs.byteChannelsToClose) > 0
-	errMsg := err.Error()
+// func sneakyExit(err error, closeUs Closers) {
+// 	fmt.Printf("Sneaky exit error: %v\n", err.Error())
+// 	// We are the rev-shell, let's limit output to stdout/err,
+// 	// .... so send error through socket, then quit:
+// 	socketPresent := closeUs.socketToClose != nil
+// 	shellPresent := closeUs.shellToClose != nil
+// 	filesPresent := len(closeUs.filesToClose) > 0
+// 	byteChannelsPresent := len(closeUs.byteChannelsToClose) > 0
+// 	errMsg := err.Error()
 
-	// Send error, then close socket:
-	if socketPresent {
-		fmt.Printf("Killing Socket\n")
-		// We could maybe send a custom signal to tell the other peer to close immediately...
-		// .... [[instead of it continuing to try to use the socket]]
-		closeUs.socketToClose.WriteShit([]byte(errMsg))
-		closeUs.socketToClose.Close()
-	}
+// 	// Send error, then close socket:
+// 	if socketPresent {
+// 		fmt.Printf("Killing Socket\n")
+// 		// We could maybe send a custom signal to tell the other peer to close immediately...
+// 		// .... [[instead of it continuing to try to use the socket]]
+// 		closeUs.socketToClose.WriteShit([]byte(errMsg))
+// 		closeUs.socketToClose.Close()
+// 	}
 
-	// Kill the rev-shell process:
-	if shellPresent {
-		fmt.Printf("Killing Shell\n")
-		closeUs.shellToClose.Shell.Process.Release()
-		closeUs.shellToClose.Shell.Process.Kill()
-	}
+// 	// Kill the rev-shell process:
+// 	if shellPresent {
+// 		fmt.Printf("Killing Shell\n")
+// 		closeUs.shellToClose.Shell.Process.Release()
+// 		closeUs.shellToClose.Shell.Process.Kill()
+// 	}
 
-	// If there are open files (in the list), close them:
-	if filesPresent {
-		for _, file := range closeUs.filesToClose {
-			if file != nil {
-				fmt.Printf("Closing %v\n", file.Name())
-				file.Close()
-			}
-		}
-	}
+// 	// If there are open files (in the list), close them:
+// 	if filesPresent {
+// 		for _, file := range closeUs.filesToClose {
+// 			if file != nil {
+// 				fmt.Printf("Closing %v\n", file.Name())
+// 				file.Close()
+// 			}
+// 		}
+// 	}
 
-	// If tehre are open channels, close them:
-	if byteChannelsPresent {
-		for _, ch := range closeUs.byteChannelsToClose {
-			fmt.Printf("Killing channel: %v\n", ch)
-			close(ch)
-		}
-	}
+// 	// If tehre are open channels, close them:
+// 	if byteChannelsPresent {
+// 		for _, ch := range closeUs.byteChannelsToClose {
+// 			fmt.Printf("Killing channel: %v\n", ch)
+// 			close(ch)
+// 		}
+// 	}
 
-	// If the termios struct is present: disable raw mode
-	if closeUs.termiosToFix != nil {
-		fmt.Printf("Disabling raw mode\n")
-		ioctl.DisableRawMode(syscall.Stdin, closeUs.termiosToFix)
-	}
+// 	// If the termios struct is present: disable raw mode
+// 	if closeUs.termiosToFix != nil {
+// 		fmt.Printf("Disabling raw mode\n")
+// 		ioctl.DisableRawMode(syscall.Stdin, closeUs.termiosToFix)
+// 	}
 
-	// K, now we can quietly die
-	os.Exit(69)
-}
+// 	// K, now we can quietly die
+// 	os.Exit(69)
+// }
 
 func Run(c conn.ConnectionGetter) {
+	// Make a parent context for the main (Run()) routine:
+	parentCtx, pCancel := context.WithCancel(context.Background())
+	defer pCancel()
+	fmt.Print("Here is the parent contesxt: %v\n", parentCtx)
+
+	// Start SIGINT routine before we block Run() with child contexts:
+	go func() {
+		// If SIGINT: close connection, exit w/ code 2
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt)
+		defer signal.Stop(signalChan)
+
+		<-signalChan
+		pCancel()
+	}()
+
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
 	var closeUs Closers
@@ -124,41 +142,49 @@ func Run(c conn.ConnectionGetter) {
 		fmt.Println(updateUserBanner)
 	}
 
-	// Make connection:
-	var socketInterface conn.SocketInterface
-	closeUs.socketToClose = socketInterface
-	var err error
-
-	if thisPeer.ConnectionType == "offense" {
-		socketInterface, err = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
-	} else {
-		socketInterface, err = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
-	}
-
+	// Make the Host type based on the peer struct:
+	var host hosts.Host
+	host, err := hosts.NewHost(thisPeer)
 	if err != nil {
-		sneakyExit(err, closeUs)
-		return
-	}
-	defer socketInterface.Close()
-
-	// If shell flag is true, get shell cmd (to start later)
-	var shellInterface *shell.RealShell
-	var shellErr error
-	closeUs.shellToClose = shellInterface
-
-	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
-		var realShellGetter shell.RealShellGetter
-		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
-
-		if shellErr != nil {
-			customErr := fmt.Errorf("Error starting the rev shell process: %v\n", shellErr)
-			sneakyExit(customErr, closeUs)
-			return
-		}
+		fmt.Printf("Error trying to create new host: %v\n", err)
 	}
 
-	// Start SIGINT go routine & start channel to listen for SIGINT:
-	listenForSIGINT(socketInterface, thisPeer)
+	fmt.Printf("We made it back to exe.go, the host is: %v\n", host)
+
+	// // Make connection:
+	// var socketInterface conn.SocketInterface
+	// closeUs.socketToClose = socketInterface
+
+	// if thisPeer.ConnectionType == "offense" {
+	// 	socketInterface, err = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
+	// } else {
+	// 	socketInterface, err = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
+	// }
+
+	// if err != nil {
+	// 	sneakyExit(err, closeUs)
+	// 	return
+	// }
+	// defer socketInterface.Close()
+
+	// // If shell flag is true, get shell cmd (to start later)
+	// var shellInterface *shell.RealShell
+	// var shellErr error
+	// closeUs.shellToClose = shellInterface
+
+	// if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
+	// 	var realShellGetter shell.RealShellGetter
+	// 	shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
+
+	// 	if shellErr != nil {
+	// 		customErr := fmt.Errorf("Error starting the rev shell process: %v\n", shellErr)
+	// 		sneakyExit(customErr, closeUs)
+	// 		return
+	// 	}
+	// }
+
+	// // Start SIGINT go routine & start channel to listen for SIGINT:
+	// listenForSIGINT(socketInterface, thisPeer)
 
 	// ................................................. CONNECT-BACK w/ SHELL .................................................
 
@@ -372,27 +398,4 @@ func Run(c conn.ConnectionGetter) {
 			}
 		}
 	}
-}
-
-func listenForSIGINT(connection conn.SocketInterface, thisPeer *conn.Peer) { // POINTER: passing Peer by reference (we ACTUALLY want to close it)
-	// If SIGINT: close connection, exit w/ code 2
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-
-	go func() {
-		for sig := range signalChan {
-			fmt.Printf("Signal: %v\n", sig)
-
-			// Maybe have a check here to send the signal to the socket
-			// .... rather than quit netpuppy (since the user could be trying)
-			// .... to send a signal to the rev shell
-			if sig.String() == "interrupt" {
-				if !thisPeer.Shell {
-					fmt.Printf("signal: %v\n", sig)
-				}
-				connection.Close()
-				os.Exit(2)
-			}
-		}
-	}()
 }
