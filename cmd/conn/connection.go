@@ -57,7 +57,7 @@ type SocketInterface interface {
 
 type ConnectionGetter interface {
 	// Used to check the real (RealConnectionGetter) & test (TestConnectionGetter) structs:
-	GetConnectionFromListener(int, string) (SocketInterface, error)
+	GetConnectionFromListener(int, string, bool) (SocketInterface, error)
 	GetConnectionFromClient(int, string, bool) (SocketInterface, error)
 }
 
@@ -128,7 +128,7 @@ func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string,
 }
 
 // Creat listener-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) (SocketInterface, error) {
+func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string, shell bool) (SocketInterface, error) {
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
@@ -196,7 +196,7 @@ func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string,
 	return testClientConnection
 }
 
-func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
+func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string, shell bool) SocketInterface {
 	testListenerConnection := TestSocket{Port: rPort, Address: address}
 	return testListenerConnection
 }
