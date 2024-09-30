@@ -84,7 +84,7 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 		return fmt.Errorf("Error enabling termios raw mode; returned error code: %s\n,", errno)
 	}
 	// Use the oGTermios structure w/ a defer of DisableRawMode() to reset the terminal before exiting:
-	defer ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
+	// defer ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
 
 	// Create child context:
 	childContext, chCancel := context.WithCancel(pCtx)
@@ -94,10 +94,12 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	// Stop Signal chan for go routines:
+	stopChan := make(chan bool)
+
 	// GO ROUTINES:
 	go func() { // Read socket & copy to stdout:
-		defer wg.Done()  // When this goroutine returns, the counter will decrement
-		defer chCancel() // THIS GO ROUTINE IS IN CHARGE OF SIGNALLING DONE TO THE PARENT CONTEXT
+		defer wg.Done() // When this goroutine returns, the counter will decrement
 
 		for {
 			select {
@@ -111,16 +113,18 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 					_, err = off.stdout.Write(dataFromSocket)
 					if err != nil {
 						fmt.Printf("Error writing data from socket to Offense stdout: %v\n", err)
+						stopChan <- true
 						return
 					}
 				}
 
 				if err != nil {
 					if errors.Is(err, io.EOF) {
-						fmt.Printf("Socket EOF offense\n")
+						// fmt.Printf("Socket EOF offense\n")
 						continue
 					} else {
 						fmt.Printf("Error reading from socket to Offense stdout: %v\n", err)
+						stopChan <- true
 						return
 					}
 				}
@@ -130,27 +134,33 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 
 	go func() { // Read stdin & write to socket:
 		defer wg.Done()
+		defer chCancel()
 
 		// Make buffer
 		buffer := make([]byte, 1)
 
 		// Read stdin byte by byte
 		for {
-			i, TIT_BY_BOO := off.stdin.Read(buffer)
-			if TIT_BY_BOO != nil {
-				if errors.Is(TIT_BY_BOO, io.EOF) {
-					continue
-				} else {
-					fmt.Printf("Error reading from stdin: %v\n", TIT_BY_BOO)
+			select {
+			case <-stopChan:
+				return
+			default:
+				i, TIT_BY_BOO := off.stdin.Read(buffer)
+				if TIT_BY_BOO != nil {
+					if errors.Is(TIT_BY_BOO, io.EOF) {
+						continue
+					} else {
+						fmt.Printf("Error reading from stdin: %v\n", TIT_BY_BOO)
+						return
+					}
+				}
+
+				// Write to socket:
+				_, err := off.socket.WriteShit(buffer[:i])
+				if err != nil {
+					fmt.Printf("Error writing Stdin to socket: %v\n", err)
 					return
 				}
-			}
-
-			// Write to socket:
-			_, err := off.socket.WriteShit(buffer[:i])
-			if err != nil {
-				fmt.Printf("Error writing Stdin to socket: %v\n", err)
-				return
 			}
 		}
 	}()
@@ -158,12 +168,20 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 	// Call wait after go routines b/c it's going to block:
 	wg.Wait()
 
+	// SINCE WE'RE DYING, LETS TELL THE OTHER HOST:
+	signal := "tiddies"
+
+	_, err := off.socket.WriteShit([]byte(signal))
+	if err != nil {
+		fmt.Printf("ERROR SENDING TIDDIES SIGNAL: %v\n", err)
+	}
+
 	errno = ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
 	if errno != 0 {
 		return errors.New("Error disabling raw mode on Offense termios, error code: " + errno.Error())
 	}
 
-	err := off.socket.Close()
+	err = off.socket.Close()
 	if err != nil {
 		return errors.New("Error closing socket on Offense host: " + err.Error())
 	}
@@ -231,10 +249,12 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	// Go routine quit channel
+	stopSigChan := make(chan bool)
+
 	// Go Routines:
 	go func() { // Read socket and copy to master device stdin
 		defer wg.Done()
-		defer chCancel() // THIS ROUTINE IN CHARGE OF CANCELING CONTEXT
 
 		for {
 			select {
@@ -246,17 +266,35 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) error {
 				socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := cb.socket.Read() // @arthvadrr 'err'
 				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
 					if errors.Is(puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die, io.EOF) {
+						// Check if connection is still live: (other peer didn't close?):
+						//... try to send something?
+						_, err := cb.socket.WriteShit([]byte("hello?"))
+						if err != nil {
+							// Socket probs dead? time to quit
+							fmt.Printf("Error when checking socket connection, might be dead: %v\n", err)
+							stopSigChan <- true
+							return
+						}
 						continue
 					} else {
 						fmt.Printf("Error while reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
+						stopSigChan <- true
 						return
 					}
+				}
+
+				socketCOnString := string(socketContent)
+				if socketCOnString == "tiddies" {
+					fmt.Printf("69 ACHIEVED\n")
+					stopSigChan <- true
+					return
 				}
 
 				// Write to master device
 				_, err := master.Write(socketContent)
 				if err != nil {
 					fmt.Printf("Error writing to master device: %v\n", err)
+					stopSigChan <- true
 					return
 				}
 			}
@@ -265,20 +303,28 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) error {
 
 	go func() { // Reading master device and writing output to socket
 		defer wg.Done()
+		defer chCancel()
+
 		// Read from master device into buffer
 		buffer := make([]byte, 1024)
 		for {
-			i, err := master.Read(buffer)
-			if err != nil {
-				fmt.Printf("Error reading from master device: %v\n", err)
+			select {
+			case <-stopSigChan:
+				fmt.Printf("Stop signal received from other routine\n")
 				return
-			}
+			default:
+				i, err := master.Read(buffer)
+				if err != nil {
+					fmt.Printf("Error reading from master device: %v\n", err)
+					return
+				}
 
-			//	If i > 0 (not EOF), Write to socket:
-			_, err = cb.socket.WriteShit(buffer[:i])
-			if err != nil {
-				fmt.Printf("Error writing shit to socket from master device: %v\n", err)
-				return
+				//	If i > 0 (not EOF), Write to socket:
+				_, err = cb.socket.WriteShit(buffer[:i])
+				if err != nil {
+					fmt.Printf("Error writing shit to socket from master device: %v\n", err)
+					return
+				}
 			}
 		}
 	}()
