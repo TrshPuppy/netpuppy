@@ -16,7 +16,7 @@ import (
 )
 
 type Host interface {
-	Start(context.Context) error
+	Start(context.Context) (error, int)
 }
 
 type OffensiveHost struct {
@@ -77,14 +77,15 @@ func NewHost(peer *conn.Peer, c conn.ConnectionGetter) (Host, error) {
 	}
 }
 
-func (off *OffensiveHost) Start(pCtx context.Context) error {
+func (off *OffensiveHost) Start(pCtx context.Context) (error, int) {
+	// Error count:
+	var errorCount int
+
 	// Enable raw mode:
 	oGTermios, errno := ioctl.EnableRawMode(int(off.stdin.Fd()))
 	if errno != 0 {
-		return fmt.Errorf("Error enabling termios raw mode; returned error code: %s\n,", errno)
+		return fmt.Errorf("Error enabling termios raw mode; returned error code: %s\n,", errno), errorCount
 	}
-	// Use the oGTermios structure w/ a defer of DisableRawMode() to reset the terminal before exiting:
-	// defer ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
 
 	// Create child context:
 	childContext, chCancel := context.WithCancel(pCtx)
@@ -94,11 +95,11 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Stop Signal chan for go routines:
-	stopChan := make(chan bool)
+	// Create channel for signaling other Go Routine to stop when this one quits:
+	stopChan := make(chan bool, 1)
 
 	// GO ROUTINES:
-	go func() { // Read socket & copy to stdout:
+	go func() { // Read socket & copy to stdout + this routine sends stop signal to the other:
 		defer wg.Done() // When this goroutine returns, the counter will decrement
 
 		for {
@@ -113,6 +114,7 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 					_, err = off.stdout.Write(dataFromSocket)
 					if err != nil {
 						fmt.Printf("Error writing data from socket to Offense stdout: %v\n", err)
+						// Tell the other Go Routine to stop:
 						stopChan <- true
 						return
 					}
@@ -120,7 +122,13 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 
 				if err != nil {
 					if errors.Is(err, io.EOF) {
-						// fmt.Printf("Socket EOF offense\n")
+						// Check that the socket connection is gucci GENG:
+						_, err = off.socket.WriteShit([]byte("hello?"))
+						if err != nil {
+							fmt.Printf("Error is: %v\n", err)
+							stopChan <- true
+							return
+						}
 						continue
 					} else {
 						fmt.Printf("Error reading from socket to Offense stdout: %v\n", err)
@@ -169,46 +177,52 @@ func (off *OffensiveHost) Start(pCtx context.Context) error {
 	wg.Wait()
 
 	// SINCE WE'RE DYING, LETS TELL THE OTHER HOST:
-	signal := "tiddies"
+	// signal := "tiddies"
 
-	_, err := off.socket.WriteShit([]byte(signal))
-	if err != nil {
-		fmt.Printf("ERROR SENDING TIDDIES SIGNAL: %v\n", err)
-	}
+	// _, err := off.socket.WriteShit([]byte(signal))
+	// if err != nil {
+	// 	fmt.Printf("ERROR SENDING TIDDIES SIGNAL: %v\n", err)
+	// }
 
 	errno = ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
 	if errno != 0 {
-		return errors.New("Error disabling raw mode on Offense termios, error code: " + errno.Error())
+		fmt.Printf("Error disabling raw mode on Offense termios, error code: " + errno.Error())
+		errorCount += 1
 	}
 
-	err = off.socket.Close()
+	err := off.socket.Close()
 	if err != nil {
-		return errors.New("Error closing socket on Offense host: " + err.Error())
+		fmt.Printf("Error closing socket on Offense host: " + err.Error())
+		errorCount += 1
 	}
 
 	err = off.stdin.Close()
 	if err != nil {
-		return errors.New("Error closing stdin on Offense host: " + err.Error())
+		fmt.Printf("Error closing stdin on Offense host: " + err.Error())
+		errorCount += 1
 	}
 
 	err = off.stdout.Close()
 	if err != nil {
-		return errors.New("Error closing stdout on Offense host: " + err.Error())
+		fmt.Printf("Error closing stdout on Offense host: " + err.Error())
+		errorCount += 1
 	}
 
 	err = off.stderr.Close()
 	if err != nil {
-		return errors.New("Error closing stderr on Offense host: " + err.Error())
+		fmt.Printf("Error closing stderr on Offense host: " + err.Error())
+		errorCount += 1
 	}
 
-	return nil
+	return nil, errorCount
 }
 
-func (cb *ConnectBackHost) Start(pCtx context.Context) error {
+func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
+	var errorCount int
 	// PTS and MAster
 	master, pts, err := pty.GetPseudoterminalDevices()
 	if err != nil {
-		return err
+		return err, errorCount
 	}
 	defer master.Close()
 	defer pts.Close()
@@ -223,7 +237,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) error {
 
 	shellStruct, err = shellGetter.GetConnectBackInitiatedShell()
 	if err != nil {
-		return err
+		return err, errorCount
 	}
 	cb.shell = shellStruct.Shell
 	defer cb.shell.Process.Release()
@@ -238,7 +252,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) error {
 	// Start Shell:
 	err = cb.shell.Start()
 	if err != nil {
-		return err
+		return err, errorCount
 	}
 
 	// Create child context:
@@ -249,11 +263,11 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Go routine quit channel
+	// Create channel for signaling other Go Routine to stop when this one quits:
 	stopSigChan := make(chan bool)
 
 	// Go Routines:
-	go func() { // Read socket and copy to master device stdin
+	go func() { // Read socket and copy to master device stdin + this routine sends stop signal to other:
 		defer wg.Done()
 
 		for {
@@ -334,20 +348,40 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) error {
 
 	// Once both routines are done, cleanup:
 	// close pts and master devices:
-	pts.Close()
+	err = pts.Close()
+	if err != nil {
+		fmt.Printf("Error closing PTS on exit: %v\n", err)
+		errorCount += 1
+	}
 	master.Close()
+	if err != nil {
+		fmt.Printf("Error closing master on exit: %v\n", err)
+		errorCount += 1
+	}
 
 	// Stop the shell:
-	cb.shell.Process.Release()
-	cb.shell.Process.Kill()
+	err = cb.shell.Process.Release()
+	if err != nil {
+		fmt.Printf("Error releasing shell prcoess on exit: %v\n", err)
+		errorCount += 1
+	}
+	err = cb.shell.Process.Kill()
+	if err != nil {
+		fmt.Printf("Error killing shell process on exit: %v\n", err)
+		errorCount += 1
+	}
 
 	// Kill connection:
 	cb.socket.Close()
+	if err != nil {
+		fmt.Printf("Error killing shell process on exit: %v\n", err)
+		errorCount += 1
+	}
 
-	return nil
+	return nil, errorCount
 }
 
-func (lcb *LAMEConnectBackHost) Start(pCtx context.Context) error {
+func (lcb *LAMEConnectBackHost) Start(pCtx context.Context) (error, int) {
 	fmt.Printf("Eww, who asked for a lame connect back host? gross\n")
-	return nil
+	return nil, 0
 }

@@ -146,9 +146,10 @@ func Run(c conn.ConnectionGetter) {
 	}
 
 	// Once we get the host, call Host.Start():
-	err = host.Start(parentCtx)
+	err, errCount := host.Start(parentCtx)
 	if err != nil {
 		fmt.Printf("Error starting host: %v\n", err)
+		fmt.Printf("Error Count: %v\n", errCount)
 		os.Exit(1337)
 	}
 
