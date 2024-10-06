@@ -53,6 +53,6 @@ func DisableRawMode(stdinFd int, termios *syscall.Termios) syscall.Errno {
 
 func tcSetAttr(stdinFd int, termios *syscall.Termios) syscall.Errno {
 	// Use tcsetattr() wrapper to set the terminal to its original attributes
-	_, _, errno := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(stdinFd), uintptr(syscall.TCSETS), uintptr(unsafe.Pointer(&termios)), 0, 0, 0)
+	_, _, errno := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(stdinFd), uintptr(syscall.TCSETS), uintptr(unsafe.Pointer(termios)), 0, 0, 0)
 	return errno
 }
