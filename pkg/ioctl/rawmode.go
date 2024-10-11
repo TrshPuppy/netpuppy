@@ -31,7 +31,16 @@ func EnableRawMode(stdinFd int) (*syscall.Termios, syscall.Errno) {
 	return &ogTerm, errno
 }
 
-// Use cgo to call tcgetattr()
+// Used to set the terminal back to its OG state:
+func DisableRawMode(stdinFd int, termios *syscall.Termios) syscall.Errno {
+	// Use the tcsetattr() wrapper to reset the terminal to it's original state
+	//... (using the attributes we saved in EnableRawMode)
+	errno := tcSetAttr(stdinFd, termios)
+
+	return errno
+}
+
+// Using Linux tcgetattr() to get the terminal attributes:
 func tcGetAttr(stdinFd int) (*syscall.Termios, syscall.Errno) {
 	var currentTerm syscall.Termios
 
@@ -44,15 +53,10 @@ func tcGetAttr(stdinFd int) (*syscall.Termios, syscall.Errno) {
 	return &currentTerm, errno
 }
 
-func DisableRawMode(stdinFd int, termios *syscall.Termios) syscall.Errno {
-	// Use the tcsetattr() wrapper to reset the terminal to it's original state
-	//... (using the attributes we saved in EnableRawMode)
-	errno := tcSetAttr(stdinFd, termios)
-	return errno
-}
-
+// Using Linux tcsetattr() to set specific attributes to the termios struct:
 func tcSetAttr(stdinFd int, termios *syscall.Termios) syscall.Errno {
 	// Use tcsetattr() wrapper to set the terminal to its original attributes
 	_, _, errno := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(stdinFd), uintptr(syscall.TCSETS), uintptr(unsafe.Pointer(termios)), 0, 0, 0)
+
 	return errno
 }
