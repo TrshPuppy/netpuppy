@@ -298,7 +298,7 @@ func (cb *ConnectBackHost) Start(pCtx context.Context) (error, int) {
 				}
 
 				socketCOnString := string(socketContent)
-				if socketCOnString == "tiddies" {
+				if socketCOnString == "break" {
 					fmt.Printf("69 ACHIEVED\n")
 					stopSigChan <- true
 					return
