@@ -3,15 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
-	"syscall"
 
 	// NetPuppy pkgs:
 	"github.com/trshpuppy/netpuppy/cmd/conn"
 	"github.com/trshpuppy/netpuppy/cmd/hosts"
-	"github.com/trshpuppy/netpuppy/cmd/shell"
 	"github.com/trshpuppy/netpuppy/utils"
 )
 
@@ -37,7 +34,6 @@ func Run(c conn.ConnectionGetter) {
 
 	// Create peer instance based on user input:
 	var thisPeer *conn.Peer = conn.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
-	fmt.Printf("PEER: %v\n", thisPeer)
 
 	// Print banner, but don't print if we are the peer running the shell (ooh sneaky!):
 	if !thisPeer.Shell {
