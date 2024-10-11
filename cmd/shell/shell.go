@@ -47,7 +47,7 @@ func (g RealShellGetter) GetConnectBackInitiatedShell() (*RealShell, error) {
 	prompt := `PS1=\[\e]0;\u@\h: \w\a\]\[\033[;94m\]┌──${debian_chroot:+($debian_chroot)──}${VIRTUAL_ENV:+(\[\033[0;1m\]$(basename $VIRTUAL_ENV)\[\033[;94m\])}(\[\033[1;31m\]\u㉿\h\[\033[;94m\])-[\[\033[0;1m\]\w\[\033[;94m\]]\n\[\033[;94m\]└─\[\033[1;31m\]\$\[\033[0m\]`
 
 	// Get cmd and set prompt and the setsid properties on it:
-	cmd := *pointerToShell
+	cmd := pointerToShell
 	cmd.Shell.Env = append(cmd.Shell.Environ(), prompt)
 	cmd.Shell.SysProcAttr = &syscall.SysProcAttr{
 		Setsid: true,
@@ -76,7 +76,6 @@ func (s *RealShell) GetStdinWriter() (*io.WriteCloser, error) {
 func (s *RealShell) StartShell() error {
 	// Start the shell:
 	var erR error = s.Shell.Start()
-	// erR := fmt.Errorf("tiddies")
 
 	return erR
 }

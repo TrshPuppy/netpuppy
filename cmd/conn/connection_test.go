@@ -38,7 +38,7 @@ func TestGetConnectionFromListener(t *testing.T) {
 	var address string = "0.0.0.0"
 	var testConnection TestConnectionGetter
 
-	var socket = testConnection.GetConnectionFromListener(rPort, address)
+	var socket = testConnection.GetConnectionFromListener(rPort, address, false)
 	// Type assertion:
 	testListenerSocket, success := socket.(TestSocket)
 	if !success {

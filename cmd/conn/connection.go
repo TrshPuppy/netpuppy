@@ -41,9 +41,7 @@ package conn
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"os"
 )
 
 // SHARED Code:
@@ -59,8 +57,8 @@ type SocketInterface interface {
 
 type ConnectionGetter interface {
 	// Used to check the real (RealConnectionGetter) & test (TestConnectionGetter) structs:
-	GetConnectionFromListener(int, string) SocketInterface
-	GetConnectionFromClient(int, string, bool) SocketInterface
+	GetConnectionFromListener(int, string, bool) (SocketInterface, error)
+	GetConnectionFromClient(int, string, bool) (SocketInterface, error)
 }
 
 // REAL code:
@@ -78,17 +76,16 @@ func (s *RealSocket) Read() ([]byte, error) {
 	var numberOfBytesSent int = 0
 	var err error
 
-	// 'numberOfBytes' will tell us how many bytes were read from socket, use to index into buffer:
 	numberOfBytesSent, err = s.Socket.Read(buffer)
 	return buffer[:numberOfBytesSent], err
 }
 
 // Write to the ACTUAL socket on RealSocket struct:
-func (s *RealSocket) WriteShit(userInput []byte) (int, error) {
+func (s *RealSocket) WriteShit(input []byte) (int, error) {
 	var writeSuccess int
 	var err error
 
-	writeSuccess, err = s.Socket.Write(userInput)
+	writeSuccess, err = s.Socket.Write(input)
 	return writeSuccess, err
 }
 
@@ -110,50 +107,38 @@ func (s *RealSocket) GetWriter() io.Writer {
 
 // These next 2 function create the ACTUAL socket and attach the connection to RealSocket
 // ..... Create client-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) SocketInterface {
+func (r RealConnectionGetter) GetConnectionFromClient(rPort int, address string, shell bool) (SocketInterface, error) {
 	var clientConnection net.Conn
 	var err error
 	var pointerToRealSocket *RealSocket
 
-	// remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort))
 	remoteHost := net.JoinHostPort(address, fmt.Sprintf("%v", rPort)) // Re-writing for DialTCP
-	// var laddr *net.TCPAddr
-	// var raddr *net.TCPAddr
-
-	// laddr.IP = {
-	// 	IP: "0.0.0.0", // gotta create a net.IP IP
-	// 	Port:
-	// 	// Zone:
-	// }
 
 	// Get client connectiokjn:
 	clientConnection, err = net.Dial("tcp", remoteHost)
-	//clientConnection, err = net.DialTCP("tcp", remoteHost)
 	if err != nil {
-		if !shell {
-			log.Fatalf("Error creating client connection (connection.go): %v\n", err)
-		} else {
-			os.Exit(1)
-		}
+		fmt.Printf("ERROR ON REV SHELL DIAL CONNECT: %v\n", err)
+		return nil, err
 	}
 
 	// Attach connection to RealSocket & get the pointer to the instance:
 	pointerToRealSocket = &RealSocket{Socket: clientConnection}
 
-	return pointerToRealSocket
+	return pointerToRealSocket, nil
 }
 
 // Creat listener-type socket & attach to RealSocket:
-func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
+func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address string, shell bool) (SocketInterface, error) {
 	var listenerConnection net.Conn
 	var err error
 	var localPort string = fmt.Sprintf(":%v", rPort)
-	//var pointerToRealSocket *RealSocket
 
 	// Listener created first:
 	listener, err1 := net.Listen("tcp", localPort)
 	if err1 != nil {
-		log.Fatalf("Error when creating listener connection: %v\n", err1)
+		fmt.Printf("ERROR IN LISTENER: %v\n", err1)
+		// listener.Close()
+		return nil, err
 	}
 
 	// This ensures the listener closes before the function returns:
@@ -162,10 +147,10 @@ func (r RealConnectionGetter) GetConnectionFromListener(rPort int, address strin
 	// Create the connection using listener.Accept():
 	listenerConnection, err = listener.Accept()
 	if err != nil {
-		log.Fatalf("Error when creating listener connection: %v\n", err)
+		return nil, err
 	}
 
-	return &RealSocket{Socket: listenerConnection}
+	return &RealSocket{Socket: listenerConnection}, nil
 }
 
 // TEST Code:
@@ -211,7 +196,7 @@ func (c TestConnectionGetter) GetConnectionFromClient(rPort int, address string,
 	return testClientConnection
 }
 
-func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string) SocketInterface {
+func (c TestConnectionGetter) GetConnectionFromListener(rPort int, address string, shell bool) SocketInterface {
 	testListenerConnection := TestSocket{Port: rPort, Address: address}
 	return testListenerConnection
 }
