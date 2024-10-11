@@ -65,49 +65,13 @@ func UserSelectionBanner(choice string, host string, remotePort int, localPort i
 	return selectionBanner
 }
 
+//..........
+//.... TO DO
+//
 // func PrintMissingPortToBanner(peerType string, connection Socket) string {
 // 	var missingBannerPiece string
-
-// 	// If the current peer is the client, we need to add the local port to banner:
-// 	if peerType == "connect_back" {
-// 		missingBannerPiece = fmt.Sprintf("             |LPort: %v\n", LPort)
-// 	} else { // If the current peer is the server, we need to add the remote port to banner:
-// 		missingBannerPiece = fmt.Sprintf("               |RPort: %v\n", RPort)
-
-// 		// Update port on struct:
-// 		// var remoteAddress = fmt.Sprintf("%v", connection.RemoteAddr())
-// 		// var remotePort = strings.Split(remoteAddress, ":")[1]
-// 	}
-
+//
 // 	return missingBannerPiece
 // }
-
-//func worker(done chan bool) {
-//	fmt.Print("working...")
-//	time.Sleep(time.Second * 5)
-//	fmt.Println("done")
-//
-//	done <- true
-//	done <- true
-//	done <- true
-//	fmt.Println("after done")
-//}
-
-//func main() {
-//	done := make(chan bool, 1)
-//	done <- true
-//	go worker(done)
-//	//	<-done
-//	fmt.Printf("tiddies\n")
-//	time.Sleep(time.Second * 3)
-//	fmt.Printf("tiddies 2\n")
-//}
-
-/* TO DO:
-- make channels non blocking of each other?
-	- move channel creation out of for loop?
-	- do the channels need to be destroyed?
-- fix prompt
-
-
-*/
+//.... </TD>
+//..........
